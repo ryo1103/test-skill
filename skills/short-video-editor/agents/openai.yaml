@@ -1,0 +1,4 @@
+interface:
+  display_name: "Short Video Editor"
+  short_description: "Video-first sourcing, guarded HyperFrames, and recut-ready edits"
+  default_prompt: "Use $short-video-editor to make a video-first B-roll edit with short full-screen digital-human beats, polish-guarded selective HyperFrames, keyword-highlight subtitles, related-news/video素材 sourcing, and a recut-ready package."
