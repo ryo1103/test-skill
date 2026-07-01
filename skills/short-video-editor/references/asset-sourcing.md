@@ -35,6 +35,28 @@ After reading the full script and extracting shot-level keywords:
 
 Only after this gate passes should the edit compute the B-roll/digital-human/animation ratio and proceed to rendering.
 
+For any shot marked `broll_needed: true`, the local check must explicitly inspect:
+
+- `assets/raw/video`
+- `assets/selected/by_shot`
+- `assets/selected/by_theme`
+- `assets/raw/screen_recording`
+- `assets/metadata/asset_manifest.json`
+- `assets_library/asset_index.json`
+
+If no suitable local asset exists, Codex must:
+
+1. Generate shot-level search keywords from the exact script fragment.
+2. Search related-news and official/event sources first.
+3. Search official media kits, IR pages, product pages, public datasets, and public-domain archives.
+4. Search downloadable video providers and open video sources.
+5. Try lawful download or authorized screen recording.
+6. Record every query, result, blocked reason, selected asset, source URL, and license note.
+7. Use still images only if the required video search failed but a lawful relevant image exists.
+8. Stop if the asset shortage remains.
+
+Do not continue to final render by substituting HyperFrame, generated diagrams, generated bitmap assets, text-only cards, placeholder motion, repeated old B-roll, looped short clips, or still-image stacks.
+
 ## API Key Configuration
 
 Provider API keys must be configured outside source code.

@@ -23,20 +23,22 @@ Topic-banner gate: if the user does not provide a top banner, generate `work/pla
 
 Layout QC gate: before final rendering, run style intake, layout audit, topic-banner audit, subtitle-style audit, a preview contact sheet, and an 8-15s probe render. Final render must not start unless `layout_qc_report.json`, `topic_banner_audit.json`, and `subtitle_style_audit.json` pass, `output/qc/style_preview_contact_sheet.png` exists, and `output/qc/probe_render.mp4` decodes with representative extracted frames.
 
+Additive feature rule: `style_contract`, `persistent_topic_banner`, `layout_preflight`, and `probe_render` are additive quality gates. They must not replace script analysis, B-roll sourcing, AE/HyperFrame candidate planning, visual ratio planning, source uniqueness audit, or source playback audit. If these style gates conflict with asset gates, asset gates remain mandatory.
+
 ## Start Here
 
 1. Inspect the project folder for script, oral video, BGM, existing assets, example screenshots, previous outputs, and user constraints.
 2. If the project lacks structure, run `scripts/init_short_video_project.py <project_dir>` from this skill to create standard folders and CSV templates.
-3. Read `references/workflow.md`, `references/visual-language.md`, and `references/style-contract.md` before implementing a full video or workflow.
-4. If the user provides reference screenshots, inspect them first: extract subtitle size, title/banner position, dominant colors, outline/shadow treatment, and whether the style feels news-like, suspense-like, finance-like, technology-like, casual, or documentary. Encode the result into `work/plan/style_contract.json` and `work/plan/style_intake_report.json`.
-5. If the user gives no style prompt, directly use the default `large_short_video_caption` style. Do not ask.
-6. If the user does not provide a top topic banner, generate `work/plan/video_topic.json` automatically from the script, oral topic, asset plan, and shot plan. If the user requests `任何帧都能知道视频讲什么`, `persistent_topic_banner` is required.
-7. Run `scripts/create_style_contract.py <project_dir> --script <script_path> --style auto --topic auto` during style intake, then let Codex update the report with any reference-image visual observations.
-8. Read `references/hyperframes.md` when the user requests HyperFrames, GSAP, richer motion graphics, or a renderer split between ordinary edits and enhanced motion clips.
-9. Read `references/asset-sourcing.md` before collecting, searching, downloading, screen-recording, or validating B-roll and reusable assets.
-10. After reading the full script, run a related-news/event source scan before generic stock search. Save URLs, dates, and download feasibility in `work/plan/news_source_plan.json`.
-11. Read `references/hyperframe-polish-guard.md` before generating any shot whose `scene_type` is `hyperframe_logic` or `hyperframe_data`, whose `scene_type` is `data_card_light` with `renderer: hyperframe`, or whose `visual_pattern` is comparison, timeline, process flow, KPI card, dashboard, system diagram, or cause-effect chain.
-12. Before final rendering, run layout preflight and probe render: `scripts/audit_layout_plan.py`, `scripts/extract_qc_frames.py` for preview/contact sheet, and `scripts/render_probe.py`. Full render is allowed only after the style/layout audits pass.
+3. Read `references/workflow.md`, `references/visual-language.md`, `references/asset-sourcing.md`, `references/hyperframes.md`, `references/hyperframe-polish-guard.md`, and `references/style-contract.md` before implementing a full video or workflow.
+4. Read the full script and oral video metadata before writing the shotlist.
+5. Run style intake early only to create or update `work/plan/style_contract.json`, `work/plan/video_topic.json`, and `work/plan/style_intake_report.json`; do not produce the final timeline from style intake.
+6. Analyze the script into semantic units and explicitly mark B-roll needed shots, shot-level B-roll keywords, AE/PPT/HyperFrame overlay candidates, data/card candidates, and full-screen talking-head pivot points.
+7. Check local assets for every B-roll, screen-recording, and image-motion shot.
+8. If B-roll is missing or insufficient, run online asset sourcing in the order defined by `references/asset-sourcing.md` before rendering.
+9. Generate `shot_plan.json` and `visual_strategy.csv` using selected assets and accepted candidate overlays.
+10. Compute `visual_ratio_audit.json` from selected assets and planned durations.
+11. Only after the asset gate, visual ratio gate, source uniqueness audit, and source playback audit pass, run layout preflight and probe render.
+12. Render final MP4 and the editable package only after all old gates and new style/layout gates pass.
 
 ## Core Rules
 
@@ -82,16 +84,19 @@ Layout QC gate: before final rendering, run style intake, layout audit, topic-ba
 - Require enough unique footage before final rendering. A 1-2 minute video should normally have at least 20-25 distinct underlying footage/image sources, and the plan must mark shortages with `needs_sourcing`.
 - Asset search is a required production stage, not a cosmetic afterthought. For each shot, extract visualizable keywords, generate primary/fallback/search-recording terms, screen candidates, and record metadata before rendering.
 - After keyword extraction, check local assets first. If no suitable local asset exists for a B-roll shot, search online and attempt lawful download or authorized screen recording before any rendering work. This search is mandatory; do not skip it because a generated card or HyperFrame would be faster.
+- For every shot marked `broll_needed: true`, local asset checks must include `assets/raw/video`, `assets/selected/by_shot`, `assets/selected/by_theme`, `assets/raw/screen_recording`, `assets/metadata/asset_manifest.json`, and `assets_library/asset_index.json`. If these do not contain a suitable asset, generate shot-level search keywords and source online before rendering.
 - Video sourcing is first-class. Check every configured/known source for downloadable video before using lawful still images or authorized screen recordings. Generated graphics and placeholder cards are not sourcing fallbacks.
 - If a provider search/download needs an API key and neither the environment nor project `.env` provides it, create or update a project-root `.env.example` with placeholder variable names, tell the user to create `.env`, and pause before running that API source. If the user says they do not have the key or explicitly asks to continue, record that provider as `needs_api_key` and continue with non-API public/direct-download/official/authorized-recording sources.
 - Search and download video素材 by shot-level related keywords, not only broad topic terms. During script-to-visual planning, map each script fragment to the closest visible footage keywords and select the most relevant clips for the edit; when there are more good clips than runtime, discard weaker surplus rather than forcing every downloaded asset into the video.
 - Do not treat still images, generated diagrams, crops, masks, HyperFrames, generated bitmap assets, or text cards as substitutes for missing video B-roll. Still images may be used only when the sourcing workflow found no suitable video but did find a lawful, relevant image; generated assets require explicit user approval and must not satisfy the B-roll count.
+- Do not continue to final render by substituting missing B-roll with HyperFrames, generated diagrams, generated bitmap assets, text-only cards, placeholder motion, repeated old B-roll, looped short clips, or still-image stacks.
 - If the sourcing workflow cannot find enough lawful, relevant video/image/screen-recording assets for the planned B-roll coverage, stop. Produce `asset_search_plan.json`, `video_source_audit.csv`, and a concise shortage report; do not render a final video from generated substitutes.
 - If subtitle timing cannot be derived from audio timestamps or reliable forced alignment, stop before final rendering. Produce the draft cue plan and a concise alignment dependency report; do not render a final MP4 from script-length proportional timing unless the user explicitly requests a non-synced draft.
 - Do not layer multiple unrelated still images in stacked depth layers, and do not place still images on top of video footage as faux B-roll. If a still image is the most relevant asset, use it as a single full-screen shot with restrained editing treatment such as a slow push, pan, crop, blur-to-focus, match cut, or brief photo montage; record the image fallback reason.
 - Search related news and official event materials early. Download only lawful, permitted, non-DRM video assets; otherwise mark the source as `reference_only` or `cannot_download` and use a permissible replacement.
 - Screen recording means recording a playable public/authorized video or product/report interface when no direct download/API/media-kit route is available. It does not mean scrolling a webpage just to create motion. Do not use website-scroll screen recordings as a replacement for missing B-roll unless the page interaction itself is the story.
 - For ordinary edit shots, maintain a fast base rhythm: short full-screen digital-human pivots and distinct B-roll should be interleaved, and motion graphics should only reinforce important ideas.
+- During script analysis, before accepting `shot_plan.json`, evaluate every semantic unit for PPT/AE/HyperFrame usefulness. Candidate triggers include process flow, comparison, timeline, cause-effect chain, KPI/data card, system structure, decision logic, and a core thesis that benefits from staged visual emphasis. Fill `ae_overlay_candidate`, `ae_overlay_type`, `visual_pattern`, `hyperframe_score`, `hyperframe_allowed`, `why_simple_broll_is_not_enough`, `broll_base_asset`, `overlay_layer_plan`, `design_plan`, and `animation_plan`; set `user_review_needed: yes` when the overlay may feel like PPT filler or is uncertain.
 - Do not add subtitle-like title boxes over B-roll when bottom subtitles already say the same thing. Non-subtitle screen text should be limited to concise labels, source marks, chart values, or non-duplicative callouts.
 - Bottom subtitles may use keyword highlights in `.ass`: mark only key numbers, entities, logic pivots, risk words, and conclusions with one or two accent colors. Do not create a second subtitle layer or duplicate the same sentence in a title box.
 - Subtitle styling should favor short, high-impact cue text with selective keyword highlight. Do not burn three-line paragraph subtitles. Split long technical phrases across several cue timings instead of shrinking text or holding a long cue.
@@ -105,7 +110,7 @@ Layout QC gate: before final rendering, run style intake, layout audit, topic-ba
 Every script-to-visual plan must include these fields, in Chinese unless the project is English:
 
 ```csv
-shot,script_fragment,narrative_role,logic_type,scene_type,renderer,digital_human_presence,digital_human_reason,broll_keywords,overlay_text,data_visual_type,hyperframe_score,hyperframe_allowed,visual_pattern,ae_overlay_candidate,ae_overlay_type,broll_base_asset,overlay_layer_plan,design_plan,animation_plan,hyperframe_polish_guard,hyperframe_completeness_check,editing_rhythm,screen_text,user_review_needed
+shot,script_fragment,narrative_role,logic_type,scene_type,renderer,digital_human_presence,digital_human_reason,broll_keywords,overlay_text,data_visual_type,hyperframe_score,hyperframe_allowed,hyperframe_reason,why_simple_broll_is_not_enough,visual_pattern,ae_overlay_candidate,ae_overlay_type,broll_base_asset,overlay_layer_plan,design_plan,animation_plan,hyperframe_polish_guard,hyperframe_completeness_check,editing_rhythm,screen_text,user_review_needed
 ```
 
 For render-ready edits, also create a timecoded manifest:
@@ -221,6 +226,7 @@ When the user dislikes a card, replace only that PNG using `00_edit_manifest.csv
 - The final timeline has no repeated B-roll `source_url`, `direct_download_url`, provider id, or local source clip.
 - Source playback audit exists and confirms no B-roll source is looped, restarted, replayed from an earlier timestamp, or used in multiple timeline ranges. Per-frame duplicate checks are optional for extra QC, not the primary requirement.
 - AE/HyperFrame overlay candidates were evaluated during script planning, and accepted overlays are layered over B-roll/video-derived backgrounds unless explicitly marked as key standalone logic/data cards.
+- Workflow Integration Gate passed: asset gate, visual strategy / AE candidate gate, visual ratio audit, source uniqueness audit, source playback audit, HyperFrame polish guard, layout QC, and probe render all passed before final rendering.
 - Related-news plan and provider video-source audit exist when assets were sourced.
 - Assets and sources are traceable.
 - API keys are not hardcoded or copied into manifests/edit packages.

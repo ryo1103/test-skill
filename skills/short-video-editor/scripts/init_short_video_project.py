@@ -23,6 +23,8 @@ VISUAL_COLUMNS = [
     "data_visual_type",
     "hyperframe_score",
     "hyperframe_allowed",
+    "hyperframe_reason",
+    "why_simple_broll_is_not_enough",
     "visual_pattern",
     "ae_overlay_candidate",
     "ae_overlay_type",
@@ -126,6 +128,33 @@ VISUAL_RATIO_AUDIT_TEMPLATE = {
     "continuous_digital_human_max_sec": 0,
     "continuous_hyperframe_max_sec": 0,
     "rule_check": [],
+}
+
+SOURCE_UNIQUENESS_AUDIT_TEMPLATE = {
+    "status": "not_run",
+    "used_source_keys": [],
+    "duplicates": [],
+    "checks": [
+        "source_url",
+        "direct_download_url",
+        "provider_asset_id",
+        "original_file_page",
+        "cached_source_file",
+        "local_source_clip",
+    ],
+    "notes": "Repeated B-roll sources must be revised or explicitly approved before final render.",
+}
+
+SOURCE_PLAYBACK_AUDIT_TEMPLATE = {
+    "status": "not_run",
+    "source_ranges": [],
+    "looped_sources": [],
+    "restarted_sources": [],
+    "backward_seeks": [],
+    "repeated_ranges": [],
+    "overlong_output_ranges": [],
+    "approved_still_fallbacks": [],
+    "notes": "Video sources may be trimmed shorter once, but must not loop, restart, replay, or exceed the selected trim.",
 }
 
 SUBTITLE_CUES_TEMPLATE = {
@@ -409,6 +438,8 @@ def main():
     write_json_if_missing(root / "work" / "plan" / "hyperframe_polish_guard.json", HYPERFRAME_POLISH_GUARD_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "shot_plan.json", SHOT_PLAN_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "visual_ratio_audit.json", VISUAL_RATIO_AUDIT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "source_uniqueness_audit.json", SOURCE_UNIQUENESS_AUDIT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "source_playback_audit.json", SOURCE_PLAYBACK_AUDIT_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "subtitle_cues.json", SUBTITLE_CUES_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "subtitle_timing_audit.json", SUBTITLE_TIMING_AUDIT_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "style_contract.json", STYLE_CONTRACT_TEMPLATE)

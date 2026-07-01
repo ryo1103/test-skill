@@ -118,9 +118,11 @@ Segment the script into thought units. For each unit:
 - Decide if the unit should be full-screen digital human, full-screen B-roll, B-roll with light overlay, light data card, screen recording, or HyperFrame.
 - Mark the screen role explicitly as one of: `数字人全屏`, `纯素材`, `轻标注`, `轻量数据卡`, `录屏`, or `HyperFrame重点帧`.
 - Decide whether the unit needs an AE/PPT-style overlay on top of B-roll. Candidate units include process flow, comparison, timeline, cause-effect chain, KPI/data card, system structure, decision logic, or a key thesis that benefits from staged visual emphasis.
+- Before the final shot plan is accepted, every semantic unit must be evaluated for PPT/AE/HyperFrame usefulness. Fill `ae_overlay_candidate`, `ae_overlay_type`, `visual_pattern`, `hyperframe_score`, `hyperframe_allowed`, `why_simple_broll_is_not_enough`, `broll_base_asset`, `overlay_layer_plan`, `design_plan`, and `animation_plan`.
 - If an overlay decision is uncertain, produce a short storyboard option for user confirmation before rendering: time range, spoken phrase, B-roll base, proposed AE/HyperFrame overlay, reason, and concern.
 - Mark keyword subtitles: numbers, named entities, turning words, risk words, and final claims.
 - Extract shot-specific video search keywords at the same time as script segmentation. The search terms must visibly match that script unit, not only the video's broad topic.
+- Missing B-roll must trigger sourcing, not HyperFrame substitution. If a candidate overlay needs B-roll behind it, mark `broll_base_asset` as needed and keep the shot blocked until a selected asset exists or the sourcing shortage is documented.
 
 For a 1-2 minute video, aim for roughly 18-25 visual units. For a 2-3 minute video, 25-35 units is acceptable.
 
@@ -182,6 +184,19 @@ After keyword extraction, run the asset gate before rendering or generating moti
 3. Record every query, provider, result, blocked reason, selected asset, and local path.
 4. If an API provider needs a key that is not in the environment or project `.env`, create/update `.env.example`, ask the user to create `.env`, and pause before using that API. If the user says they have no key or asks to continue, mark that provider as `needs_api_key` and continue with other lawful non-API/direct/official/recording sources.
 5. If enough relevant assets cannot be acquired, stop at the sourcing stage. Do not generate HyperFrames, generated bitmap assets, generated diagrams, placeholder cards, or text-only motion as replacements for missing B-roll.
+
+For every shot marked `broll_needed: true`, local checks must include:
+
+- `assets/raw/video`
+- `assets/selected/by_shot`
+- `assets/selected/by_theme`
+- `assets/raw/screen_recording`
+- `assets/metadata/asset_manifest.json`
+- `assets_library/asset_index.json`
+
+If no suitable local asset exists, Codex must generate shot-level search keywords from the script fragment, search related-news and official/event sources first, search official media kits/IR/product/public-data/public-domain sources second, search downloadable video/open-video providers third, try lawful download or authorized screen recording, and record every query/result/blocked reason/selected asset/source URL/license note. Use still images only after the required video search fails and a lawful relevant image exists. Stop if the asset shortage remains.
+
+Do not continue to final render by substituting HyperFrame, generated diagrams, generated bitmap assets, text-only cards, placeholder motion, repeated old B-roll, looped short clips, or still-image stacks.
 
 ## Style Positioning And Ratio Plan
 
@@ -287,7 +302,7 @@ Rules:
 Create `work/plan/visual_strategy.csv` with:
 
 ```csv
-shot,script_fragment,narrative_role,logic_type,scene_type,renderer,digital_human_presence,digital_human_reason,broll_keywords,overlay_text,data_visual_type,hyperframe_score,hyperframe_allowed,visual_pattern,ae_overlay_candidate,ae_overlay_type,broll_base_asset,overlay_layer_plan,design_plan,animation_plan,hyperframe_polish_guard,hyperframe_completeness_check,editing_rhythm,screen_text,user_review_needed
+shot,script_fragment,narrative_role,logic_type,scene_type,renderer,digital_human_presence,digital_human_reason,broll_keywords,overlay_text,data_visual_type,hyperframe_score,hyperframe_allowed,hyperframe_reason,why_simple_broll_is_not_enough,visual_pattern,ae_overlay_candidate,ae_overlay_type,broll_base_asset,overlay_layer_plan,design_plan,animation_plan,hyperframe_polish_guard,hyperframe_completeness_check,editing_rhythm,screen_text,user_review_needed
 ```
 
 Rules:
@@ -298,6 +313,10 @@ Rules:
 - `screen_text` should be short enough for vertical video.
 - Avoid card overload. A strong video can have many visualizations, but only key claims need large cards.
 - For opinion-spreading short videos, prefer B-roll plus subtitles for setup and explanation. Reserve AE-style cards or diagrams for one or two key moments per visual mode.
+- Every semantic unit must explicitly fill `ae_overlay_candidate`, `ae_overlay_type`, `visual_pattern`, `hyperframe_score`, `hyperframe_allowed`, `broll_base_asset`, `overlay_layer_plan`, `design_plan`, and `animation_plan`.
+- HyperFrame is allowed only when `hyperframe_score >= 3` and `why_simple_broll_is_not_enough` is defensible.
+- AE/HyperFrame should normally be an overlay above selected B-roll or a video-derived background. Standalone full-screen cards are allowed only for justified key logic/data moments.
+- If a candidate overlay is uncertain or may feel like PPT filler, set `user_review_needed: yes`.
 - Default visual priority is `broll_fullscreen` -> `broll_with_overlay` -> `talking_head_fullscreen` -> `data_card_light` -> `hyperframe_logic` / `hyperframe_data`.
 - Use full-screen digital human for opening brand, core question, chapter switch, strong judgment, pre-complex-content trust beat, or conclusion. Ordinary narration should use B-roll or B-roll with light overlay.
 - Use light overlays for keywords, simple data, labels, names, products, companies, short conclusions, callouts, arrows, local zoom, darkened background, or spotlight effects. Do not duplicate the bottom subtitle text in a title box.
@@ -627,6 +646,29 @@ Probe render gate:
 - Extract probe frames to `output/qc/probe_frames/`.
 - If probe decoding fails, subtitles are too small, the banner is missing, text overflows, elements overlap, or representative frames show unsafe layout, stop before full render.
 
+## Workflow Integration Gate
+
+Before final render, confirm all old and new gates passed:
+
+1. `style_contract.json` exists.
+2. `video_topic.json` exists.
+3. `subtitle_cues.json` is audio-aligned.
+4. `visual_strategy.csv` exists and includes AE/PPT/HyperFrame candidate decisions.
+5. `shot_plan.json` exists and all B-roll shots have `broll_keywords`.
+6. `asset_search_plan.json` exists and all needed B-roll shots have selected assets or documented shortage.
+7. `video_source_audit.csv` exists when sourcing was needed.
+8. `asset_manifest.json` exists.
+9. `visual_ratio_audit.json` passes.
+10. `source_uniqueness_audit.json` passes.
+11. `source_playback_audit.json` passes.
+12. `hyperframe_polish_guard.json` passes for accepted HyperFrame shots.
+13. `layout_qc_report.json` passes.
+14. `topic_banner_audit.json` passes or records explicit `user_disabled`.
+15. `subtitle_style_audit.json` passes.
+16. Probe render exists and decodes.
+
+If any item fails, do not render final MP4. Style contracts, topic banners, layout preflight, and probe render are additive quality gates; they cannot replace asset sourcing, visual strategy planning, visual ratio audit, source uniqueness audit, source playback audit, or HyperFrame polish guard.
+
 ## Rendering Guidance
 
 Prefer reproducible render scripts over manual ffmpeg command chains for complex edits.
@@ -634,6 +676,8 @@ Prefer reproducible render scripts over manual ffmpeg command chains for complex
 Do not start rendering until the asset gate passes: selected B-roll/screen-recording/image assets exist locally, source metadata is saved, and `visual_ratio_audit.json` confirms the B-roll, digital-human, and animation/HyperFrame mix using those selected assets. If the gate fails, output the sourcing plan and shortage report instead of a final MP4.
 
 Do not start final rendering until the style/layout gate passes: `style_contract.json`, `video_topic.json`, `layout_qc_report.json`, `topic_banner_audit.json`, `subtitle_style_audit.json`, `output/qc/style_preview_contact_sheet.png`, `output/qc/probe_render.mp4`, and `output/qc/probe_frames/` must exist. Topic banner audit may be `user_disabled` only when the user explicitly disabled the banner.
+
+Also do not start final rendering until the Workflow Integration Gate passes. The style/layout gate is a later quality layer, not a replacement for asset sourcing, visual ratio audit, source uniqueness audit, source playback audit, or HyperFrame polish guard.
 
 Render from audio-aligned semantic cue-level timing:
 
@@ -673,21 +717,50 @@ Ordinary B-roll rendering rules:
 
 When the user says `帮我剪这个视频`, `用这个 skill 做成短视频`, or `生成成片` and does not specify subtitle style, execute this order:
 
-1. Read `SKILL.md`, `workflow.md`, `visual-language.md`, and `style-contract.md`.
-2. Inspect project media, script, oral video, local assets, and reference screenshots.
-3. Run style intake.
-4. Create or update `style_contract.json`.
-5. Generate `video_topic.json` automatically from script/materials.
-6. Generate `subtitle_cues.json` from audio-aligned semantic cues.
-7. Generate `shot_plan.json` and `edit_manifest.csv`.
-8. Run `audit_layout_plan.py`.
-9. Generate `style_preview_contact_sheet.png`.
-10. If audit fails, revise style contract, subtitle cues, or banner mode and rerun.
-11. Render `probe_render.mp4`.
-12. Extract probe frames and run layout audit again when layout changed.
-13. Only if all gates pass, render `final.mp4`.
-14. Extract final QC frames.
-15. Export the editable package.
+1. Read `SKILL.md`, `workflow.md`, `visual-language.md`, `asset-sourcing.md`, `hyperframes.md`, `hyperframe-polish-guard.md`, and `style-contract.md`.
+2. Inspect project media, script, oral video, local assets, existing B-roll, BGM, screenshots, and reference images.
+3. Run style intake only to create/update `style_contract.json`, `video_topic.json`, and `style_intake_report.json`.
+4. Read the full script.
+5. Create semantic script analysis:
+   - information type
+   - logic type
+   - narrative role
+   - B-roll need
+   - B-roll keywords
+   - AE/PPT/HyperFrame candidate
+   - data visual candidate
+   - talking-head pivot reason
+6. Create `subtitle_cues.json` from audio-aligned semantic cues.
+7. Create initial `visual_strategy.csv` and `shot_plan.json`.
+8. Run related-news/event source scan before generic stock search.
+9. Check local assets for every B-roll/screen-recording/image-motion shot.
+10. If local B-roll is missing or insufficient, search online using `asset-sourcing.md`.
+11. Write/update:
+    - `work/plan/news_source_plan.json`
+    - `work/plan/asset_search_plan.json`
+    - `work/plan/video_source_audit.csv`
+    - `assets/sources.csv`
+    - `assets/metadata/asset_manifest.json`
+12. If enough lawful relevant B-roll/video/image/screen-recording assets cannot be found, stop at the sourcing stage and report the shortage. Do not render final MP4 from HyperFrame, generated diagrams, text cards, or placeholder motion.
+13. After selected assets exist on disk, finalize `shot_plan.json` and `edit_manifest.csv`.
+14. Compute `work/plan/visual_ratio_audit.json` using selected assets:
+    - full-screen digital human target: `15%-28%`
+    - B-roll / related footage / screen recording / image motion target: `50%-70%`
+    - HyperFrame / AE motion graphics target: `8%-18%`
+15. If visual ratio audit fails, revise the shot plan, source more B-roll, shorten digital-human spans, or downgrade unnecessary HyperFrames.
+16. For accepted HyperFrame/AE shots, create `design_plan`, `animation_plan`, `hyperframe_polish_guard`, render standalone clips, capture `0/25/50/75/100` snapshots, and verify decode.
+17. Run source uniqueness audit.
+18. Run source playback audit.
+19. Run layout preflight:
+    - `audit_layout_plan.py`
+    - style preview contact sheet
+    - topic banner audit
+    - subtitle style audit
+20. Render `probe_render.mp4`.
+21. Extract probe frames and inspect layout.
+22. Only if all gates pass, render `final.mp4`.
+23. Extract final QC frames.
+24. Export editable package.
 
 ## Editable Package
 
@@ -753,6 +826,48 @@ Inspect:
 - Ordinary B-roll shots are direct cuts or short montages, not masked/rotated filler.
 - `assets/metadata/asset_manifest.json` and `assets_library/asset_index.json` are updated when assets are selected or reused.
 - `work/plan/visual_ratio_audit.json` passes or records exact revisions made to pass.
+
+## Acceptance Cases
+
+Case A: project has no B-roll.
+
+Expected:
+
+- Codex does not render `final.mp4` directly.
+- Codex first generates `asset_search_plan.json`.
+- Codex performs online asset sourcing.
+- Codex writes `video_source_audit.csv`.
+- If enough lawful relevant assets cannot be found, Codex stops and outputs a shortage report.
+
+Case B: script includes process, comparison, timeline, or cause-effect logic.
+
+Expected:
+
+- Related rows in `visual_strategy.csv` set `ae_overlay_candidate = yes`.
+- `ae_overlay_type` is filled correctly.
+- HyperFrame candidates have `hyperframe_score` and a reason.
+- Segments that do not justify HyperFrame are downgraded to B-roll + light overlay.
+
+Case C: project has B-roll, but not enough to support the `50%-70%` B-roll target.
+
+Expected:
+
+- `visual_ratio_audit.json` fails.
+- Codex continues sourcing or shortens non-essential durations.
+- Codex does not use repeated assets, looped assets, generated cards, or placeholder motion to pad runtime.
+
+Case D: added style features are enabled.
+
+Expected:
+
+- Large subtitles, persistent topic banner, layout preflight, and probe render run normally.
+- These steps happen after the asset gate, visual ratio gate, source uniqueness audit, and source playback audit; they do not replace those gates.
+
+Case E: final render.
+
+Expected:
+
+- Final render starts only after all pass: asset gate, visual strategy / AE candidate gate, visual ratio audit, source uniqueness audit, source playback audit, HyperFrame polish guard, layout QC, and probe render.
 
 ## User-Facing Closeout
 
