@@ -24,12 +24,17 @@ VISUAL_COLUMNS = [
     "hyperframe_score",
     "hyperframe_allowed",
     "visual_pattern",
+    "ae_overlay_candidate",
+    "ae_overlay_type",
+    "broll_base_asset",
+    "overlay_layer_plan",
     "design_plan",
     "animation_plan",
     "hyperframe_polish_guard",
     "hyperframe_completeness_check",
     "editing_rhythm",
     "screen_text",
+    "user_review_needed",
 ]
 
 MANIFEST_COLUMNS = [
@@ -40,8 +45,15 @@ MANIFEST_COLUMNS = [
     "duration",
     "visual_mode",
     "asset_key",
+    "source_in",
+    "source_out",
+    "playback_policy",
     "overlay_png",
     "script",
+    "subtitle_cue_ids",
+    "persistent_overlay_id",
+    "topic_banner_mode",
+    "layout_qc_status",
 ]
 
 SOURCE_COLUMNS = [
@@ -114,6 +126,187 @@ VISUAL_RATIO_AUDIT_TEMPLATE = {
     "continuous_digital_human_max_sec": 0,
     "continuous_hyperframe_max_sec": 0,
     "rule_check": [],
+}
+
+SUBTITLE_CUES_TEMPLATE = {
+    "alignment_method": "",
+    "rules": {
+        "final_render_requires_audio_alignment": True,
+        "semantic_complete_cue_required": True,
+        "character_count_is_soft_limit": True,
+        "target_readability": "one short spoken phrase, or two balanced lines when the phrase must stay intact",
+        "max_same_subtitle_reuse": 1,
+        "sync_tolerance_sec": 0.25,
+    },
+    "cues": [],
+}
+
+SUBTITLE_TIMING_AUDIT_TEMPLATE = {
+    "status": "not_run",
+    "alignment_method": "",
+    "sync_tolerance_sec": 0.25,
+    "sync_failures": [],
+    "semantic_completeness_failures": [],
+    "repeated_cue_text_count": 0,
+    "readability_length_warnings": [],
+}
+
+STYLE_CONTRACT_TEMPLATE = {
+    "canvas": {
+        "width": 1080,
+        "height": 1920,
+        "fps": 30,
+        "safe_area": {
+            "top": 120,
+            "bottom": 210,
+            "left": 72,
+            "right": 72,
+        },
+    },
+    "subtitle": {
+        "mode": "large_short_video_caption",
+        "font_family_preferred": [
+            "Noto Sans CJK SC",
+            "Source Han Sans SC",
+            "PingFang SC",
+            "Microsoft YaHei",
+            "system-ui",
+        ],
+        "font_size_px": 76,
+        "font_size_min_px": 68,
+        "font_size_emphasis_px": 88,
+        "font_weight": 800,
+        "line_count_max": 2,
+        "chars_per_line_soft_max": 14,
+        "bottom_margin_px": 240,
+        "horizontal_margin_px": 72,
+        "outline_px": 6,
+        "shadow_px": 3,
+        "primary_color": "#FFFFFF",
+        "keyword_color": "#00E5FF",
+        "secondary_keyword_color": "#7CFFB2",
+        "forbid_three_line_subtitles": True,
+        "forbid_shrinking_below_min": True,
+    },
+    "persistent_topic_banner": {
+        "enabled": True,
+        "required_for_final_render": True,
+        "visible_start_sec": 0,
+        "visible_end_policy": "full_duration",
+        "content_source": "work/plan/video_topic.json",
+        "max_lines": 2,
+        "main_font_size_px": 76,
+        "sub_font_size_px": 60,
+        "font_weight": 850,
+        "position": {
+            "x": 96,
+            "y": 128,
+            "width": 888,
+            "height": 220,
+        },
+        "compact_position_for_talking_head": {
+            "x": 96,
+            "y": 88,
+            "width": 888,
+            "height": 170,
+        },
+        "background": "rgba(0,0,0,0.72)",
+        "border_radius_px": 22,
+        "padding_px": 28,
+        "text_primary": "#8CFFD9",
+        "text_secondary": "#FFFFFF",
+        "outline_or_glow": True,
+        "must_not_duplicate_current_subtitle": True,
+    },
+    "style_prompt_policy": {
+        "if_user_provides_style_reference": "extract_style_from_reference_and_apply",
+        "if_user_specifies_style_in_prompt": "follow_user_style",
+        "if_user_says_subtitles_too_small": "use_large_short_video_caption",
+        "if_no_style_prompt": "use_default_large_short_video_caption",
+        "ask_user_when": [
+            "用户明确要求先选择风格",
+            "参考图风格互相冲突",
+            "项目用途和默认短视频风格明显不一致",
+            "用户上传了多个强风格参考但没有说明想模仿哪一个",
+            "文案主题高度不确定或多个主线冲突",
+        ],
+        "do_not_ask_when": [
+            "只是普通中文口播短视频",
+            "用户要求直接生成成片",
+            "用户没有给样式要求但目标平台是抖音/视频号/Shorts",
+            "用户已经说过要轻松好看的短视频风格",
+        ],
+    },
+    "layout_qc": {
+        "require_preflight_contact_sheet": True,
+        "require_probe_render_before_final": True,
+        "sample_every_sec": 5,
+        "check_subtitle_safe_area": True,
+        "check_banner_safe_area": True,
+        "check_subtitle_banner_overlap": True,
+        "check_text_min_size": True,
+        "check_hyperframe_snapshots": True,
+    },
+}
+
+VIDEO_TOPIC_TEMPLATE = {
+    "generation_mode": "auto_from_script",
+    "source_files": [],
+    "script_summary": "",
+    "main_subject": "",
+    "central_conflict": "",
+    "viewer_hook": "",
+    "one_sentence_promise": "",
+    "candidate_banners": [],
+    "selected_banner": {
+        "main": "",
+        "sub": "",
+        "reason": "",
+    },
+    "section_banners": [],
+    "must_appear_full_video": True,
+    "requires_user_confirmation": False,
+    "uncertainty_reason": "",
+}
+
+STYLE_INTAKE_REPORT_TEMPLATE = {
+    "user_style_prompt_detected": False,
+    "reference_images_detected": [],
+    "style_decision": "default_large_short_video_caption",
+    "topic_decision": "auto_from_script",
+    "asked_user": False,
+    "ask_reason": "",
+    "final_decision_reason": "Initialized with default large Chinese short-video captions.",
+}
+
+LAYOUT_QC_REPORT_TEMPLATE = {
+    "status": "not_run",
+    "checks": [],
+    "failures": [],
+    "warnings": [],
+}
+
+TOPIC_BANNER_AUDIT_TEMPLATE = {
+    "status": "not_run",
+    "enabled": True,
+    "user_disabled": False,
+    "required_for_final_render": True,
+    "selected_banner": {
+        "main": "",
+        "sub": "",
+    },
+    "coverage": {},
+    "failures": [],
+    "warnings": [],
+}
+
+SUBTITLE_STYLE_AUDIT_TEMPLATE = {
+    "status": "not_run",
+    "font_size_px": 76,
+    "font_size_min_px": 68,
+    "line_count_max": 2,
+    "failures": [],
+    "warnings": [],
 }
 
 ASSET_MANIFEST_TEMPLATE = {
@@ -197,6 +390,9 @@ def main():
         root / "bgm",
         root / "work" / "plan",
         root / "output",
+        root / "output" / "qc",
+        root / "output" / "qc" / "probe_frames",
+        root / "output" / "qc" / "final_qc_frames",
         root / "output" / "edit_package",
     ]:
         folder.mkdir(parents=True, exist_ok=True)
@@ -213,6 +409,14 @@ def main():
     write_json_if_missing(root / "work" / "plan" / "hyperframe_polish_guard.json", HYPERFRAME_POLISH_GUARD_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "shot_plan.json", SHOT_PLAN_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "visual_ratio_audit.json", VISUAL_RATIO_AUDIT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "subtitle_cues.json", SUBTITLE_CUES_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "subtitle_timing_audit.json", SUBTITLE_TIMING_AUDIT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "style_contract.json", STYLE_CONTRACT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "video_topic.json", VIDEO_TOPIC_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "style_intake_report.json", STYLE_INTAKE_REPORT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "layout_qc_report.json", LAYOUT_QC_REPORT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "topic_banner_audit.json", TOPIC_BANNER_AUDIT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "subtitle_style_audit.json", SUBTITLE_STYLE_AUDIT_TEMPLATE)
     write_json_if_missing(root / "assets" / "metadata" / "asset_manifest.json", ASSET_MANIFEST_TEMPLATE)
     write_json_if_missing(root / "assets_library" / "asset_index.json", ASSET_INDEX_TEMPLATE)
     write_text_if_missing(root / "assets" / "素材来源.md", "# 素材来源\n\n")

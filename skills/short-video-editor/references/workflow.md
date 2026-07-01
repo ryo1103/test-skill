@@ -31,9 +31,17 @@ project/
 │   │   ├── visual_strategy.csv
 │   │   ├── news_source_plan.json
 │   │   ├── asset_search_plan.json
+│   │   ├── style_contract.json
+│   │   ├── video_topic.json
+│   │   ├── style_intake_report.json
+│   │   ├── subtitle_cues.json
+│   │   ├── subtitle_timing_audit.json
 │   │   ├── shot_plan.json
 │   │   ├── hyperframe_polish_guard.json
 │   │   ├── visual_ratio_audit.json
+│   │   ├── layout_qc_report.json
+│   │   ├── topic_banner_audit.json
+│   │   ├── subtitle_style_audit.json
 │   │   ├── source_uniqueness_audit.json
 │   │   ├── source_playback_audit.json
 │   │   ├── shotlist_render.csv
@@ -42,6 +50,11 @@ project/
 ├── assets_library/
 │   └── asset_index.json
 └── output/
+    ├── qc/
+    │   ├── style_preview_contact_sheet.png
+    │   ├── probe_render.mp4
+    │   ├── probe_frames/
+    │   └── final_qc_frames/
     ├── final.mp4
     ├── subtitles.ass
     ├── subtitles.srt
@@ -60,6 +73,41 @@ Inspect and report:
 - Requested output: plan only, final MP4, editable layers, or all.
 
 Use ffmpeg for media inspection. If `ffprobe` is unavailable, use `ffmpeg -hide_banner -i`.
+
+## Style Intake And Topic Banner Generation
+
+Run this stage before script-to-visual planning and before any render script is written.
+
+Execution order:
+
+1. Check whether the user prompt explicitly specifies subtitle/title/layout style.
+2. Check whether reference screenshots are present.
+3. Read the script and existing素材 plan to identify the core topic.
+4. When reference images exist, Codex must visually inspect them and record subtitle size, title/banner position, dominant colors, outline/shadow, and style tendency such as news, suspense, finance, technology, casual, or documentary. Save this in `work/plan/style_intake_report.json`; do not pretend the Python helper performed visual judgment.
+5. When there is no reference image and no style prompt, use the default `large_short_video_caption` style without asking.
+6. Generate `work/plan/video_topic.json` automatically from the script, oral topic, asset plan, and shot plan. The banner must answer what the video is about, what the conflict is, and why it is worth watching.
+7. Generate or update `work/plan/style_contract.json` using `scripts/create_style_contract.py`.
+8. Ask the user only when the reference styles conflict, the project use case clearly conflicts with default short-video style, multiple main script lines conflict, or the generated banner could mislead.
+
+Default command:
+
+```bash
+python skills/short-video-editor/scripts/create_style_contract.py <project_dir> --script <script_path> --style auto --topic auto
+```
+
+Required outputs:
+
+- `work/plan/style_contract.json`
+- `work/plan/video_topic.json`
+- `work/plan/style_intake_report.json`
+
+Top topic banner rules:
+
+- The banner is a topic anchor / visual thesis, not a second subtitle layer.
+- It must not copy the current bottom subtitle.
+- It should normally stay visible for the full video.
+- Talking-head shots may use compact mode so the banner does not cover the face core.
+- If the user explicitly disables the banner, set `persistent_topic_banner.enabled = false`; later audit records `user_disabled` and does not fail for missing banner.
 
 ## Script Analysis
 
@@ -535,11 +583,57 @@ Source playback audit:
 
 Screen recordings are allowed only for public pages or pages the user has permission to access. In this workflow, screen recording means recording a relevant playable public/authorized video or product/report/dashboard interface when direct download/API/media-kit access is unavailable. It does not mean scrolling a webpage to create motion. Do not bypass login, paywalls, DRM, or download restrictions. Provide a recording script before recording.
 
+## Layout Preflight Before Final Render
+
+Run this stage after `subtitle_cues.json`, `shot_plan.json`, and `edit_manifest.csv` exist, and before rendering `final.mp4`.
+
+Inputs:
+
+- `work/plan/style_contract.json`
+- `work/plan/video_topic.json`
+- `work/plan/subtitle_cues.json`
+- `work/plan/shot_plan.json`
+- `work/plan/edit_manifest.csv`
+
+Required checks:
+
+1. `subtitle.font_size_px >= subtitle.font_size_min_px`.
+2. Subtitle line count is at most two.
+3. Subtitle box stays inside the configured safe layout.
+4. When `persistent_topic_banner.enabled = true`, the banner covers `0` to full duration unless the user disabled it.
+5. Banner does not copy the current subtitle.
+6. Banner box and subtitle box do not overlap.
+7. Banner box stays in the upper safe layout; compact mode is allowed for talking-head face clearance.
+8. HyperFrame/design cards do not occupy the subtitle area.
+9. Long subtitles are semantically split; shrinking below the minimum font size is forbidden.
+10. If the user explicitly disables the banner, record `user_disabled` and do not fail for missing banner.
+
+Process:
+
+1. Run `scripts/audit_layout_plan.py <project_dir>`.
+2. Generate `6-12` representative preview frames/contact sheet, including opening talking-head, B-roll + subtitle, B-roll + top banner, data card/HyperFrame, long subtitle, and ending where those exist.
+3. Save the preview as `output/qc/style_preview_contact_sheet.png`.
+4. Save audit outputs:
+   - `work/plan/layout_qc_report.json`
+   - `work/plan/topic_banner_audit.json`
+   - `work/plan/subtitle_style_audit.json`
+5. If any audit fails, revise subtitle cue splitting, banner compact mode, banner size, allowed font size, or safe-area layout, then regenerate preview and audit.
+6. Only `layout_qc_report.json.status == "passed"` permits full render.
+
+Probe render gate:
+
+- Before full render, generate `8-15s` of `output/qc/probe_render.mp4`.
+- The probe must cover at least one talking-head shot, one B-roll shot, one topic-banner frame, and one long-subtitle frame when those exist in the manifest.
+- Extract probe frames to `output/qc/probe_frames/`.
+- If probe decoding fails, subtitles are too small, the banner is missing, text overflows, elements overlap, or representative frames show unsafe layout, stop before full render.
+
 ## Rendering Guidance
 
 Prefer reproducible render scripts over manual ffmpeg command chains for complex edits.
 
 Do not start rendering until the asset gate passes: selected B-roll/screen-recording/image assets exist locally, source metadata is saved, and `visual_ratio_audit.json` confirms the B-roll, digital-human, and animation/HyperFrame mix using those selected assets. If the gate fails, output the sourcing plan and shortage report instead of a final MP4.
+
+Do not start final rendering until the style/layout gate passes: `style_contract.json`, `video_topic.json`, `layout_qc_report.json`, `topic_banner_audit.json`, `subtitle_style_audit.json`, `output/qc/style_preview_contact_sheet.png`, `output/qc/probe_render.mp4`, and `output/qc/probe_frames/` must exist. Topic banner audit may be `user_disabled` only when the user explicitly disabled the banner.
 
 Render from audio-aligned semantic cue-level timing:
 
@@ -552,7 +646,8 @@ Render from audio-aligned semantic cue-level timing:
 7. Insert AE/HyperFrame effects as overlay layers above selected B-roll or video-derived backgrounds; use standalone full-screen cards only for explicitly justified key logic/data moments.
 8. Generate `.srt` and `.ass` from the same cue list used by the visual timeline.
 9. Run `source_uniqueness_audit.json` and `source_playback_audit.json`.
-10. Fail the render if cues are not audio-aligned, if a cue breaks semantic phrasing unnaturally, if subtitle text repeats across multiple visual cuts, if any B-roll source is reused, or if any source playback loop/restart/rewind is found outside approved still fallback.
+10. Generate `style_preview_contact_sheet.png`, run `audit_layout_plan.py`, render `probe_render.mp4`, and extract probe frames.
+11. Fail the render if cues are not audio-aligned, if a cue breaks semantic phrasing unnaturally, if subtitle text repeats across multiple visual cuts, if subtitles are below `68px`, if any subtitle has more than two lines, if the required topic banner is missing/duplicative/overlapping, if any B-roll source is reused, or if any source playback loop/restart/rewind is found outside approved still fallback.
 
 Common render outputs:
 
@@ -573,6 +668,26 @@ Ordinary B-roll rendering rules:
 - Final preview may burn subtitles; base/editable exports should keep subtitles separate.
 - If a motion-enhanced card is needed, insert it only where the shot plan marks `renderer: hyperframe`, `hyperframe_allowed: true`, and `hyperframe_score >= 3`.
 - Do not insert a HyperFrame clip unless `hyperframe_polish_guard.final_status = complete` and `hyperframe_completeness_check` confirms a standalone render, representative frame checks, decode check, and no partial/placeholder animation.
+
+## Codex Default Execution Order
+
+When the user says `帮我剪这个视频`, `用这个 skill 做成短视频`, or `生成成片` and does not specify subtitle style, execute this order:
+
+1. Read `SKILL.md`, `workflow.md`, `visual-language.md`, and `style-contract.md`.
+2. Inspect project media, script, oral video, local assets, and reference screenshots.
+3. Run style intake.
+4. Create or update `style_contract.json`.
+5. Generate `video_topic.json` automatically from script/materials.
+6. Generate `subtitle_cues.json` from audio-aligned semantic cues.
+7. Generate `shot_plan.json` and `edit_manifest.csv`.
+8. Run `audit_layout_plan.py`.
+9. Generate `style_preview_contact_sheet.png`.
+10. If audit fails, revise style contract, subtitle cues, or banner mode and rerun.
+11. Render `probe_render.mp4`.
+12. Extract probe frames and run layout audit again when layout changed.
+13. Only if all gates pass, render `final.mp4`.
+14. Extract final QC frames.
+15. Export the editable package.
 
 ## Editable Package
 
@@ -604,10 +719,18 @@ Run:
 - Decode check: `ffmpeg -v error -i final.mp4 -f null -`
 - Media info: `ffmpeg -hide_banner -i final.mp4`
 - Extract representative frames at key times.
+- Confirm `output/qc/style_preview_contact_sheet.png`, `output/qc/probe_render.mp4`, `output/qc/probe_frames/`, and `output/qc/final_qc_frames/` exist.
+- Confirm `work/plan/layout_qc_report.json.status = passed`.
+- Confirm `work/plan/topic_banner_audit.json.status = passed` or `user_disabled`.
+- Confirm `work/plan/subtitle_style_audit.json.status = passed`.
 
 Inspect:
 
 - Asset gate passed before render; no missing B-roll was replaced by HyperFrame, generated bitmap assets, generated diagrams, placeholder cards, or text-only filler.
+- Default Chinese short-video subtitles are large and readable; ordinary subtitles are not smaller than `68px`, emphasis subtitles are in the `86-96px` range when used, and no cue is three lines.
+- Top topic banner is present through the video unless the user explicitly disabled it; it summarizes the video thesis and does not逐句复制 bottom subtitles.
+- Talking-head shots use compact banner mode when the normal banner would cover the face core.
+- Layout preflight and probe render passed before final render.
 - No blank or unrelated frames.
 - No B-roll clip is looped, restarted, replayed from an earlier timestamp, or used in multiple ranges according to `source_playback_audit.json`. Optional sampled-frame QC may be used only as an extra check.
 - No subtitle/card overlap.

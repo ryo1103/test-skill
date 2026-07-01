@@ -213,6 +213,106 @@ Snapshot QA must check:
 - Looks like messy PPT.
 - Looks like random webpage.
 
+## Ordinary Edit Timeline Guards
+
+HyperFrame snapshots are not enough. Ordinary subtitles and the persistent topic banner affect every frame of a short video, so they must pass equivalent preflight gates before final render.
+
+### `subtitle_style_guard`
+
+Trigger for every oral-video edit with burned or editable subtitles.
+
+Required inputs:
+
+- `work/plan/style_contract.json`
+- `work/plan/subtitle_cues.json`
+- `work/plan/subtitle_timing_audit.json`
+
+Checks:
+
+- `subtitle.mode = large_short_video_caption` unless the user explicitly requested another style.
+- For 1080x1920 Chinese video, normal subtitle size is at least `68px`; default target is `76px`.
+- Emphasis subtitles, when used, stay in the `86-96px` range.
+- Subtitle line count is at most two.
+- Long cue text is split semantically instead of shrinking below the minimum font size.
+- Cue timing follows audio-derived word/phrase timestamps for final render.
+- The same subtitle is not held across multiple unrelated visual cuts.
+
+Failure conditions:
+
+- Font size below minimum.
+- Three-line subtitles.
+- Fixed-character slicing that breaks a phrase, number, named entity, technical term, comparison, or cause-effect unit.
+- Subtitle text clipped or outside the safe layout.
+
+### `topic_banner_guard`
+
+Trigger when `persistent_topic_banner.enabled = true` or when the user asks that any frame communicate the video topic.
+
+Required inputs:
+
+- `work/plan/style_contract.json`
+- `work/plan/video_topic.json`
+- `work/plan/subtitle_cues.json`
+
+Checks:
+
+- `video_topic.selected_banner.main` or `.sub` exists.
+- Banner starts at `0s` and covers the full duration unless the user explicitly disabled it.
+- Banner is a topic anchor / visual thesis, not a second subtitle layer.
+- Banner does not copy the current bottom subtitle.
+- Banner stays in the upper safe area.
+- Talking-head shots use compact mode when needed to avoid covering the face core.
+
+Failure conditions:
+
+- Required banner missing.
+- Banner duplicates subtitle text.
+- Banner overlaps bottom subtitle, key face area, or primary HyperFrame/card content.
+- Banner changes too frequently and becomes a PPT section-title carousel.
+
+If the user explicitly disables the topic banner, record `status: user_disabled` in `work/plan/topic_banner_audit.json`; do not fail for missing banner.
+
+### `layout_preflight_guard`
+
+Trigger before final render and before exporting an editable package.
+
+Required outputs:
+
+- `output/qc/style_preview_contact_sheet.png`
+- `work/plan/layout_qc_report.json`
+- `work/plan/topic_banner_audit.json`
+- `work/plan/subtitle_style_audit.json`
+
+Preview frames must include representative cases when present:
+
+- opening talking-head;
+- B-roll with bottom subtitle;
+- B-roll with persistent topic banner;
+- data card or HyperFrame;
+- long subtitle;
+- ending/conclusion.
+
+If preflight fails, revise subtitle splitting, banner compact mode, banner size, safe-area placement, or card layout and regenerate the contact sheet. Do not proceed directly to full render.
+
+### `probe_render_guard`
+
+Trigger after layout preflight passes and before full render.
+
+Required outputs:
+
+- `output/qc/probe_render.mp4`
+- `output/qc/probe_frames/`
+- optional `output/qc/probe_contact_sheet.png`
+
+Rules:
+
+- Probe duration should be `8-15s`.
+- Probe should include talking-head, B-roll, topic-banner, and long-subtitle examples when they exist in the manifest.
+- Decode-check the probe with ffmpeg.
+- Extract frames and inspect for tiny subtitles, missing banner, overflow, overlap, clipped text, wrong aspect ratio, or misplaced animation.
+
+If probe decoding or layout inspection fails, stop before full render.
+
 ## Auto-Fix Loop
 
 If a snapshot shows a problem, revise and re-render automatically when feasible:
@@ -253,3 +353,17 @@ Save a per-shot polish record in `work/plan/hyperframe_polish_guard.json`:
   "final_status": "complete | downgraded | blocked"
 }
 ```
+
+For ordinary edit timeline guards, save:
+
+```text
+work/plan/subtitle_style_audit.json
+work/plan/topic_banner_audit.json
+work/plan/layout_qc_report.json
+work/plan/probe_render_report.json
+output/qc/style_preview_contact_sheet.png
+output/qc/probe_render.mp4
+output/qc/probe_frames/
+```
+
+Do not mark the whole video ready for final delivery until both the HyperFrame-specific guard and the ordinary edit timeline guards have passed.

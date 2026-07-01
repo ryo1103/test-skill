@@ -1,6 +1,6 @@
 ---
 name: short-video-editor
-description: Create reproducible workflows and editable assets for 1-2 minute vertical knowledge, explainer, or news commentary videos from an oral/talking-head video plus script, including news/event verification, downloadable video B-roll sourcing, data cards, subtitles, final renders, and recut packages. Use when the user asks to analyze a Chinese script, create a shotlist, collect/download video素材 or B-roll, plan related-news footage, design cards/charts/logical visualizations, render a Douyin/WeChat Channels style video, or export separated layers for Jianying/Premiere/DaVinci.
+description: Create reproducible workflows and editable assets for 1-2 minute vertical knowledge, explainer, or news commentary videos from an oral/talking-head video plus script, including news/event verification, downloadable video B-roll sourcing, large Chinese short-video subtitles, persistent topic banners, data cards, layout preflight, probe renders, final renders, and recut packages. Use when the user asks to analyze a Chinese script, create a shotlist, collect/download video素材 or B-roll, plan related-news footage, design cards/charts/logical visualizations, render a Douyin/WeChat Channels/Shorts style video, or export separated layers for Jianying/Premiere/DaVinci.
 ---
 
 # Short Video Editor
@@ -17,17 +17,26 @@ Uniqueness gate: final edits must not reuse B-roll sources and must not replay a
 
 AE/HyperFrame overlay gate: during script and storyboard generation, actively identify where a PPT/process-style AE effect or HyperFrame overlay would improve the argument: process flow, comparison, timeline, cause-effect chain, KPI/data card, system structure, or decision logic. These dynamic effects are overlay layers on top of selected B-roll/video-derived backgrounds, not replacements for B-roll and not filler for missing footage. If unsure whether a segment deserves an AE/HyperFrame overlay, show a simple timecoded storyboard option to the user and ask for confirmation before rendering that section.
 
+Style gate: if the user does not specify a subtitle style, use `large_short_video_caption` by default and do not stop to ask. For Chinese 1080x1920 short videos, bottom subtitles must be large, high-contrast, keyword-highlight capable, and at most two lines. If the user says `字幕太小`, `轻松好看`, `参考这个图`, or `任何帧都能知道视频讲什么`, automatically enable large subtitles, a persistent topic banner, layout preflight, and probe render. Save the visual contract to `work/plan/style_contract.json`; render scripts, ASS subtitles, Remotion overlays, and HyperFrame overlays must read that file instead of hardcoding subtitle size, title position, or colors.
+
+Topic-banner gate: if the user does not provide a top banner, generate `work/plan/video_topic.json` automatically from the script, oral topic, selected素材, and shot plan. The banner is a topic anchor / visual thesis for the whole video or a stable section, not a second subtitle layer, and it must not copy the current bottom subtitle. Only ask the user when the script theme is genuinely uncertain, multiple main lines conflict, reference images conflict, or the generated title may mislead.
+
+Layout QC gate: before final rendering, run style intake, layout audit, topic-banner audit, subtitle-style audit, a preview contact sheet, and an 8-15s probe render. Final render must not start unless `layout_qc_report.json`, `topic_banner_audit.json`, and `subtitle_style_audit.json` pass, `output/qc/style_preview_contact_sheet.png` exists, and `output/qc/probe_render.mp4` decodes with representative extracted frames.
+
 ## Start Here
 
 1. Inspect the project folder for script, oral video, BGM, existing assets, example screenshots, previous outputs, and user constraints.
 2. If the project lacks structure, run `scripts/init_short_video_project.py <project_dir>` from this skill to create standard folders and CSV templates.
-3. Read `references/workflow.md` before implementing a full video or workflow.
-4. Read `references/visual-language.md` when assigning visual expressions to script logic, scene types, digital-human exposure, B-roll usage, data cards, and HyperFrame eligibility.
-5. Read `references/hyperframes.md` when the user requests HyperFrames, GSAP, richer motion graphics, or a renderer split between ordinary edits and enhanced motion clips.
-6. Read `references/asset-sourcing.md` before collecting, searching, downloading, screen-recording, or validating B-roll and reusable assets.
-7. After reading the full script, run a related-news/event source scan before generic stock search. Save URLs, dates, and download feasibility in `work/plan/news_source_plan.json`.
-8. When the user provides style screenshots, summarize the visual style first, then encode the style into the shot plan and HyperFrame direction before rendering.
-9. Read `references/hyperframe-polish-guard.md` before generating any shot whose `scene_type` is `hyperframe_logic` or `hyperframe_data`, whose `scene_type` is `data_card_light` with `renderer: hyperframe`, or whose `visual_pattern` is comparison, timeline, process flow, KPI card, dashboard, system diagram, or cause-effect chain.
+3. Read `references/workflow.md`, `references/visual-language.md`, and `references/style-contract.md` before implementing a full video or workflow.
+4. If the user provides reference screenshots, inspect them first: extract subtitle size, title/banner position, dominant colors, outline/shadow treatment, and whether the style feels news-like, suspense-like, finance-like, technology-like, casual, or documentary. Encode the result into `work/plan/style_contract.json` and `work/plan/style_intake_report.json`.
+5. If the user gives no style prompt, directly use the default `large_short_video_caption` style. Do not ask.
+6. If the user does not provide a top topic banner, generate `work/plan/video_topic.json` automatically from the script, oral topic, asset plan, and shot plan. If the user requests `任何帧都能知道视频讲什么`, `persistent_topic_banner` is required.
+7. Run `scripts/create_style_contract.py <project_dir> --script <script_path> --style auto --topic auto` during style intake, then let Codex update the report with any reference-image visual observations.
+8. Read `references/hyperframes.md` when the user requests HyperFrames, GSAP, richer motion graphics, or a renderer split between ordinary edits and enhanced motion clips.
+9. Read `references/asset-sourcing.md` before collecting, searching, downloading, screen-recording, or validating B-roll and reusable assets.
+10. After reading the full script, run a related-news/event source scan before generic stock search. Save URLs, dates, and download feasibility in `work/plan/news_source_plan.json`.
+11. Read `references/hyperframe-polish-guard.md` before generating any shot whose `scene_type` is `hyperframe_logic` or `hyperframe_data`, whose `scene_type` is `data_card_light` with `renderer: hyperframe`, or whose `visual_pattern` is comparison, timeline, process flow, KPI card, dashboard, system diagram, or cause-effect chain.
+12. Before final rendering, run layout preflight and probe render: `scripts/audit_layout_plan.py`, `scripts/extract_qc_frames.py` for preview/contact sheet, and `scripts/render_probe.py`. Full render is allowed only after the style/layout audits pass.
 
 ## Core Rules
 
@@ -38,6 +47,12 @@ AE/HyperFrame overlay gate: during script and storyboard generation, actively id
 - Keep most cue durations around the actual spoken phrase timing. A cue starts at the first spoken word and ends after the last spoken word, with small padding only when needed for readability. Avoid any subtitle cue staying on screen for several visual cuts.
 - Use subtitle cues as edit points. B-roll and motion cards should change on cue boundaries or every `1-2` cues. Do not build a final timeline from coarse 6-8s script segments and then stretch one subtitle across that whole segment.
 - Do not repeat the same subtitle text over consecutive visual frames. If a sentence needs multiple visual beats, split it into multiple cue texts or keep only a short keyword highlight on later beats.
+- Bottom subtitles default to large short-video captions. For 1080x1920 Chinese videos, normal subtitle size should be `68-82px`, emphasis size should be `86-96px`, and captions must stay at two lines maximum.
+- Long subtitles must not be solved by shrinking the font. If a cue does not fit at or above `font_size_min_px`, split it on sentence, clause, breath, pause, contrast, entity, number, or technical-term boundaries while preserving a complete spoken meaning.
+- Generate or update `work/plan/style_contract.json` before writing any final render script. Bottom subtitles, keyword-highlight ASS, top topic banner, ordinary overlays, Remotion overlays, and HyperFrame overlays must read visual tokens from this file.
+- A persistent topic banner is allowed and recommended when the user wants every frame to communicate the video topic. It must summarize the full-video thesis or stable section, not duplicate the current subtitle.
+- The topic banner should stay in the upper safe area and may switch to compact mode during talking-head shots to avoid covering the face core. Do not put it in the same bottom region as subtitles.
+- If `persistent_topic_banner.required_for_final_render = true`, final render must fail when the banner is missing, not full-duration, out of safe area, clipped, overlapping subtitles, or duplicating active subtitle text.
 - Default to B-roll as the main picture, not the digital human and not HyperFrames. The normal priority is: `broll_fullscreen` -> `broll_with_overlay` -> `talking_head_fullscreen` -> `data_card_light` -> `hyperframe_logic` / `hyperframe_data`.
 - Keep the total visual mix near these targets: full-screen digital human `15%-28%`, B-roll/related footage/screen recording/image motion `50%-70%`, HyperFrames `8%-18%`. For a 2-minute video, that roughly means digital human `18-34s`, B-roll `60-85s`, and HyperFrames `10-22s`.
 - Treat the visual mix as a render gate, not an early excuse to synthesize visuals. First acquire selected B-roll/screen-recording/image assets, then compute the video B-roll, digital-human, and animation/HyperFrame ratios from those selected assets before rendering.
@@ -80,6 +95,7 @@ AE/HyperFrame overlay gate: during script and storyboard generation, actively id
 - Do not add subtitle-like title boxes over B-roll when bottom subtitles already say the same thing. Non-subtitle screen text should be limited to concise labels, source marks, chart values, or non-duplicative callouts.
 - Bottom subtitles may use keyword highlights in `.ass`: mark only key numbers, entities, logic pivots, risk words, and conclusions with one or two accent colors. Do not create a second subtitle layer or duplicate the same sentence in a title box.
 - Subtitle styling should favor short, high-impact cue text with selective keyword highlight. Do not burn three-line paragraph subtitles. Split long technical phrases across several cue timings instead of shrinking text or holding a long cue.
+- Final render must fail if subtitles are below the configured minimum size, if any subtitle has more than two lines, if subtitle/banner boxes overlap, if title/subtitle text is clipped, if HyperFrame/design cards occupy the subtitle zone, if required preview snapshots are missing, or if `layout_qc_report.json.status != "passed"`.
 - Keep every output reproducible: save scripts, source lists, shotlists, subtitles, manifests, and generated assets.
 - When using web assets, prefer official, permissive, or clearly attributable sources. Record URLs and licenses/notes in a source file.
 - Always produce an editable package when the user may manually refine the result.
@@ -95,7 +111,7 @@ shot,script_fragment,narrative_role,logic_type,scene_type,renderer,digital_human
 For render-ready edits, also create a timecoded manifest:
 
 ```csv
-shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,source_out,playback_policy,overlay_png,script
+shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,source_out,playback_policy,overlay_png,script,subtitle_cue_ids,persistent_overlay_id,topic_banner_mode,layout_qc_status
 ```
 
 ## Workflow
@@ -104,7 +120,14 @@ shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,sourc
    - Identify oral video, script file, target platform, aspect ratio, expected duration, BGM, sample visual style, and output preference.
    - For Chinese vertical short video default to `1080x1920`, `30fps`, strong subtitles, and short visual units.
 
-2. **Script analysis**
+2. **Style intake and topic banner generation**
+   - Check whether the user explicitly specified a subtitle/title style.
+   - Check whether reference screenshots exist. If yes, inspect their visual style and write the observed subtitle size, title position, colors, outline/shadow, and style tendency into `style_intake_report.json`.
+   - If there is no style prompt or screenshot, use `large_short_video_caption` without asking.
+   - Generate or update `work/plan/style_contract.json` and `work/plan/video_topic.json` with `scripts/create_style_contract.py`.
+   - Only ask the user when reference styles conflict, the topic has multiple incompatible main lines, or the generated banner could mislead.
+
+3. **Script analysis**
    - Segment the script by meaning, not just punctuation.
    - Label each segment as data, comparison, time change, process, cause-effect, risk, turning point, metaphor, or conclusion.
    - While segmenting, decide whether the segment should get B-roll only, a light label, or an AE/HyperFrame overlay on top of B-roll. Mark process/comparison/timeline/cause-effect/data/system-structure segments as overlay candidates when a motion layer would clarify the logic.
@@ -113,7 +136,7 @@ shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,sourc
    - For oral-video projects, also create audio-aligned subtitle cues from the script/audio and record cue id, start, end, text, keywords, related shot, visual intent, alignment source, and split reason. These cues drive the render timeline.
    - If an AE/HyperFrame overlay decision is uncertain, create a simple storyboard row showing time, spoken phrase, proposed B-roll base, proposed overlay, and why it may be useful; ask the user before rendering that overlay.
 
-3. **Visual strategy**
+4. **Visual strategy**
    - Use `references/visual-language.md` to choose the visual expression.
    - Keep full-screen digital-human intervals short and intentional.
    - Explicitly mark each segment as `talking_head_fullscreen`, `broll_fullscreen`, `broll_with_overlay`, `data_card_light`, `screen_recording`, `hyperframe_logic`, `hyperframe_data`, or `conclusion_card` before rendering.
@@ -123,7 +146,7 @@ shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,sourc
    - For every AE/HyperFrame overlay candidate, specify the B-roll base asset, overlay layer content, animation stages, and whether the output should be a transparent overlay or pre-composited over B-roll.
    - Do not generate HyperFrame/video-card substitutes for shots marked `broll_needed: true` until the asset gate has passed. HyperFrames can enhance selected moments only after real selected assets exist and the ratio audit is based on those assets.
 
-4. **Asset plan**
+5. **Asset plan**
    - Read `references/asset-sourcing.md`.
    - Use local assets first. If local assets are missing or insufficient, search online in the required acquisition order: related news/official event sources, official media kits/public datasets, downloadable stock/open video sources, permissible image sources, then authorized screen recordings.
    - When a required provider API key is missing, create/update `.env.example`, ask the user to add `.env`, and stop before using that API provider unless the user already said they have no key or asked to continue. After that explicit user direction, skip only the missing-key API attempt and keep searching other lawful sources.
@@ -134,16 +157,20 @@ shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,sourc
    - Enforce the distinct-source target before rendering.
    - Do not use unrelated images just because they look cinematic. Do not use HyperFrame, generated bitmap assets, generated diagrams, or placeholder cards to satisfy missing B-roll.
 
-5. **Rendering or handoff**
+6. **Rendering or handoff**
    - Before rendering, verify that selected assets exist on disk and `visual_ratio_audit.json` computes B-roll, digital-human, and animation/HyperFrame ratios from the selected assets. If the B-roll target cannot be met, stop and report sourcing gaps.
    - If generating a video, create a local render script under `work/` that can be rerun.
    - Generate the edit timeline from `subtitle_cues.json`: choose one visual event per semantic cue or per two very short adjacent cues, bind each event to one unique source asset, and cut on cue boundaries.
    - Run a duplicate-source audit before rendering. If any B-roll source URL or direct-download URL appears twice in the final timeline, revise the timeline or source more assets before rendering.
    - Run a source playback audit before final delivery. If the edit manifest or render commands show looped footage, restarted source playback, repeated source ranges, or output duration longer than the selected trim, revise the timeline or source more footage before rendering.
    - Burn subtitles only for final preview. Keep separate `.srt` and, when keyword highlights are used, `.ass`.
+   - Run `scripts/audit_layout_plan.py <project_dir>` and generate a representative `output/qc/style_preview_contact_sheet.png` before final render. The preview must include opening talking-head, B-roll + subtitle, B-roll + topic banner, data card/HyperFrame, long subtitle, and ending frames when those exist.
+   - If the layout audit fails, revise subtitle splitting, banner compact mode, banner height, font size within allowed range, or safe-area layout, then rerun the preview/audit loop.
+   - Run `scripts/render_probe.py <project_dir>` and extract probe frames before full render. The probe must cover at least one talking-head shot, one B-roll shot, one topic-banner frame, and one long-subtitle frame when those are present.
+   - Only render `final.mp4` after `layout_qc_report.json.status = "passed"`, topic/subtitle audits pass, the probe decodes, and probe frames are available.
    - Export a final MP4 and an editable package.
 
-6. **Editable package**
+7. **Editable package**
    - Export `01_base_with_oral_no_cards_no_subtitles.mp4`.
    - Export `02_clean_broll_no_cards_no_oral.mp4` when possible.
    - Export `03_overlay_cards_png/` with transparent card/chart PNGs or PNG sequences.
@@ -151,10 +178,12 @@ shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,sourc
    - Export `00_edit_manifest.csv`.
    - Include the original oral video and script for manual recutting.
 
-7. **Verification**
+8. **Verification**
    - Run ffmpeg decode checks on final and base videos.
    - Extract representative frames covering data card, oral pivot, process diagram, timeline, decision tree, and conclusion.
    - Inspect frames for blank output, clipped text, subtitle/card overlap, wrong aspect ratio, and missing audio.
+   - Confirm `output/qc/style_preview_contact_sheet.png`, `output/qc/probe_render.mp4`, `output/qc/probe_frames/`, and `output/qc/final_qc_frames/` exist.
+   - Confirm `work/plan/layout_qc_report.json`, `work/plan/topic_banner_audit.json`, and `work/plan/subtitle_style_audit.json` pass or record an explicit user-disabled banner.
    - For HyperFrame shots, verify `npx hyperframes lint`, preview/render, `0%/25%/50%/75%/100%` snapshots, visual QA, and auto-fix records in `work/plan/hyperframe_polish_guard.json`.
    - Check `work/plan/visual_ratio_audit.json` for digital-human, B-roll, and HyperFrame ratios and continuous-duration violations.
 
@@ -178,6 +207,13 @@ When the user dislikes a card, replace only that PNG using `00_edit_manifest.csv
 - Base editable MP4 exists and decodes.
 - Subtitle files exist separately from final MP4.
 - Shotlist and manifest exist.
+- `style_contract.json`, `video_topic.json`, and `style_intake_report.json` exist.
+- The render script, ASS subtitles, ordinary overlays, Remotion overlays, and HyperFrame overlays read `style_contract.json` rather than hardcoding subtitle/title style.
+- Topic banner audit exists and passes, or records `user_disabled` because the user explicitly turned the banner off.
+- Subtitle style audit exists and confirms normal subtitles are at least `68px`, at most two lines, and not shrunk to fit long text.
+- Layout QC report exists with `status: passed` before final render.
+- `output/qc/style_preview_contact_sheet.png`, `output/qc/probe_render.mp4`, `output/qc/probe_frames/`, and `output/qc/final_qc_frames/` exist.
+- Probe render decodes and covers representative talking-head, B-roll, topic-banner, and long-subtitle frames when those are present.
 - Visual ratio audit exists and passes or records the required revisions.
 - HyperFrame polish guard records exist and pass for every HyperFrame-triggered shot, or those shots were downgraded before render.
 - Subtitle cues exist, are audio-aligned, meaning-aware, and used as edit timing boundaries.

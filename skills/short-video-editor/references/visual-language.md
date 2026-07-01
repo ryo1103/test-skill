@@ -30,6 +30,14 @@ Target mix for a 1-2 minute video:
 - B-roll / related footage / screen recording / image motion: `50%-70%`.
 - HyperFrame: `8%-18%`.
 
+Default subtitle/title style for Chinese vertical shorts:
+
+```text
+large_short_video_caption + persistent_topic_banner
+```
+
+If the user provides no style prompt, use this default without asking. If the user says `字幕太小`, `轻松好看`, `参考这个图`, or `任何帧都能知道视频讲什么`, keep or switch to this style and run layout preflight plus probe render before final.
+
 ## Scene Types
 
 Use only these `scene_type` values in `shot_plan.json`:
@@ -172,6 +180,45 @@ When a number appears, first judge its importance:
 
 Data visual patterns include KPI card, delta card, metric dashboard, line chart, bar ranking, comparison matrix, timeline, progress bar, and risk meter. Not every number needs a data card, and not every data card needs HyperFrame.
 
+## Large Short-Video Caption Style
+
+Use `large_short_video_caption` for ordinary Chinese Douyin/WeChat Channels/Shorts oral-video edits unless the user explicitly requests a different subtitle style.
+
+Default visual rules for `1080x1920`:
+
+- Normal bottom subtitle: `68-82px`, default `76px`.
+- Emphasis subtitle: `86-96px`, default `88px`.
+- Font weight: bold enough for mobile, usually `800`.
+- Line count: maximum two lines.
+- Soft line length: roughly `14` Chinese characters per line.
+- Bottom margin: keep the subtitle above the platform/player danger zone, default around `240px`.
+- Outline/shadow: strong enough to read over bright B-roll, default outline around `6px` plus subtle shadow.
+- Keyword colors: one cyan and one mint/secondary accent are enough.
+
+Long subtitle policy:
+
+- Do not shrink below `font_size_min_px` to fit long text.
+- Do not use three-line paragraph subtitles.
+- Split long cues semantically by sentence, clause, breath, pause, contrast, named entity, number, technical term, or cause-effect boundary.
+- Keep each cue as a complete spoken phrase or meaningful clause.
+- Audio timing is mandatory for final render; a subtitle cannot start before the spoken phrase or linger after it.
+
+## Persistent Topic Banner
+
+Use a persistent topic banner when the user wants any frame to communicate what the video is about. It is recommended by default for Chinese news, finance, business, technology, and knowledge-explainer shorts.
+
+Rules:
+
+- The banner is a topic anchor / visual thesis, not a second subtitle layer.
+- It must answer the video topic, conflict, and viewing hook.
+- It should normally remain visible through the full video.
+- It must not duplicate the current bottom subtitle or mirror subtitles sentence by sentence.
+- Main title should usually be `8-16` Chinese characters; subtitle should usually be `10-22` Chinese characters.
+- Place it in the upper safe area. For talking-head shots, use compact mode if the normal banner would cover the face core.
+- Use strong contrast: dark translucent background, mint/cyan title, white subtitle, glow/outline if needed.
+- Keep it visually stable. Do not change it every sentence; section banners are only for clear chapters.
+- Include the banner in B-roll/overlay/HyperFrame collision checks. Cards, charts, labels, and HyperFrame panels must not collide with it or with bottom subtitles.
+
 ## Subtitle Keyword Highlighting
 
 Highlight:
@@ -245,7 +292,10 @@ When a key comparison/data/system cue requires a motion card:
 ## Vertical Layout Rules
 
 - Keep primary card content between roughly 450px and 1250px Y for 1080x1920.
-- Reserve bottom space for subtitles.
+- Reserve bottom space for large subtitles. Do not place cards, labels, source text, or HyperFrame panels in the subtitle box.
+- Reserve upper safe space for the persistent topic banner when enabled. B-roll labels and HyperFrame titles must fit below or around it, not under it.
+- During talking-head shots, use the compact topic-banner position when the normal banner would cover the face core.
+- Run layout preflight before final render to verify banner/subtitle/card clearance.
 - Keep source text small and short; split into two lines if needed.
 - Avoid card nesting. Use one clear panel or unframed full-screen diagram.
 - Use high contrast for Chinese text.
