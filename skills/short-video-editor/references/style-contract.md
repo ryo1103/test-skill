@@ -47,9 +47,9 @@ Default for 1080x1920, 30fps Chinese vertical short videos:
   "subtitle": {
     "mode": "large_short_video_caption",
     "font_family_preferred": ["Noto Sans CJK SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", "system-ui"],
-    "font_size_px": 76,
-    "font_size_min_px": 68,
-    "font_size_emphasis_px": 88,
+    "font_size_px": 80,
+    "font_size_min_px": 72,
+    "font_size_emphasis_px": 92,
     "font_weight": 800,
     "line_count_max": 2,
     "chars_per_cue_target_min": 6,
@@ -77,23 +77,23 @@ Default for 1080x1920, 30fps Chinese vertical short videos:
     "visible_end_policy": "full_duration",
     "content_source": "work/plan/video_topic.json",
     "max_lines": 2,
-    "main_font_size_px": 76,
-    "sub_font_size_px": 60,
+    "main_font_size_px": 82,
+    "sub_font_size_px": 74,
     "font_weight": 850,
     "position": {
-      "x": 96,
+      "x": 170,
       "y": 128,
-      "width": 888,
-      "height": 220
+      "width": 740,
+      "height": 230
     },
     "compact_position_for_talking_head": {
-      "x": 96,
+      "x": 170,
       "y": 88,
-      "width": 888,
-      "height": 170
+      "width": 740,
+      "height": 220
     },
-    "background": "rgba(0,0,0,0.72)",
-    "border_radius_px": 22,
+    "background": "rgba(0,0,0,0.76)",
+    "border_radius_px": 24,
     "padding_px": 28,
     "text_primary": "#8CFFD9",
     "text_secondary": "#FFFFFF",
@@ -220,6 +220,7 @@ When reference images exist, Codex must visually inspect them and write the extr
 The persistent topic banner is a topic anchor / visual thesis. It is not a second subtitle layer.
 
 - It must summarize the full-video thesis or section, not copy the current bottom subtitle.
+- It should visually match a large two-line short-video headline: main title `80-84px`, subtitle line `72-78px`, black rounded rectangle background at `0.72-0.78` opacity, and a centered title-card box around `720-760px` wide by `210-240px` high unless a reference style overrides it.
 - It should stay in the upper safe area.
 - It may use `compact_position_for_talking_head` during talking-head shots to avoid covering the speaker's face.
 - It should remain visible for the full duration when `required_for_final_render = true`, unless the user explicitly disables it.
@@ -228,12 +229,12 @@ The persistent topic banner is a topic anchor / visual thesis. It is not a secon
 ## Subtitle Rules
 
 - Bottom subtitles default to large Chinese short-video captions.
-- Normal subtitle size should be `68-82px` for 1080x1920.
+- Normal subtitle size should default to `78-82px` for 1080x1920, with `72px` as the hard minimum.
 - Emphasis size should be `86-96px`.
 - Maximum subtitle line count is 2.
 - Burned subtitle cues should be short spoken fragments, target `6-14` Chinese characters, hard max `18` except named entities.
 - Remove visible punctuation such as `，。；：` unless semantically required.
-- Long subtitles must be semantically split; do not shrink below `font_size_min_px` to force long text into one cue.
+- Long subtitles must be semantically split; do not shrink below `72px` or `font_size_min_px` to force long text into one cue.
 - Each cue must remain a complete spoken phrase or meaningful clause and must use audio-derived timing for final renders.
 - If `subtitle_cues.alignment_method = script_length_proportional_draft_only`, do not render `output/final.mp4`. First run subtitle alignment remediation: extract oral audio, check available ASR/Whisper/forced-alignment/manual timestamp inputs, rebuild cues, and rerun audits. Render only `output/draft_preview.mp4` and mark final blocked after those timing paths fail.
 - Every final cue must have audio-derived timing from ASR, forced alignment, or manual phrase timestamps. Low-confidence/proportional cues fail final render.

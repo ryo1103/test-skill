@@ -770,7 +770,7 @@ Render from audio-aligned semantic cue-level timing:
 8. Generate `.srt` and `.ass` from the same cue list used by the visual timeline.
 9. Run `source_uniqueness_audit.json` and `source_playback_audit.json`.
 10. Generate `style_preview_contact_sheet.png`, run `audit_layout_plan.py`, render `probe_render.mp4`, and extract probe frames.
-11. Fail the final render only after remediation is exhausted if cues are not audio-aligned, if the cue plan remains `script_length_proportional_draft_only`, if any cue has low-confidence/proportional timing, if a cue breaks semantic phrasing unnaturally, if subtitle text repeats across multiple visual cuts, if burned subtitle cues exceed the short-cue target, if subtitles are below `68px`, if any subtitle has more than two lines, if the required topic banner is missing/duplicative/overlapping, if any B-roll source is reused, or if any source playback loop/restart/rewind is found outside approved still fallback.
+11. Fail the final render only after remediation is exhausted if cues are not audio-aligned, if the cue plan remains `script_length_proportional_draft_only`, if any cue has low-confidence/proportional timing, if a cue breaks semantic phrasing unnaturally, if subtitle text repeats across multiple visual cuts, if burned subtitle cues exceed the short-cue target, if subtitles are below the hard minimum `72px`, if any subtitle has more than two lines, if the required topic banner is missing/duplicative/overlapping, if any B-roll source is reused, or if any source playback loop/restart/rewind is found outside approved still fallback.
 
 Common render outputs:
 
@@ -881,7 +881,7 @@ Run:
 Inspect:
 
 - Asset gate passed before render; no missing B-roll was replaced by HyperFrame, generated bitmap assets, generated diagrams, placeholder cards, or text-only filler.
-- Default Chinese short-video subtitles are large and readable; ordinary subtitles are not smaller than `68px`, emphasis subtitles are in the `86-96px` range when used, and no cue is three lines.
+- Default Chinese short-video subtitles are large and readable; ordinary subtitles default to `78-82px` and are never smaller than `72px`, emphasis subtitles are in the `86-96px` range when used, and no cue is three lines.
 - Top topic banner is present through the video unless the user explicitly disabled it; it summarizes the video thesis and does not逐句复制 bottom subtitles.
 - Talking-head shots use compact banner mode when the normal banner would cover the face core.
 - Layout preflight and probe render passed before final render.

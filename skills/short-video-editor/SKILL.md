@@ -59,10 +59,11 @@ Gate remediation rule: gates are mandatory quality controls, not first-response 
 - Do not repeat the same subtitle text over consecutive visual frames. If a sentence needs multiple visual beats, split it into multiple cue texts or keep only a short keyword highlight on later beats.
 - Burned subtitles must be short spoken fragments, not full written sentences. For Chinese captions, target `6-14` Chinese characters per cue and hard-stop over `18` characters except named entities. Remove visible punctuation such as `，。；：` unless it is semantically required.
 - Every final subtitle cue must have audio-derived start/end from ASR, forced alignment, or manual phrase timestamps. Low-confidence, proportional, missing, or draft-only timing fails final render.
-- Bottom subtitles default to large short-video captions. For 1080x1920 Chinese videos, normal subtitle size should be `68-82px`, emphasis size should be `86-96px`, and captions must stay at two lines maximum.
-- Long subtitles must not be solved by shrinking the font. If a cue does not fit at or above `font_size_min_px`, split it on sentence, clause, breath, pause, contrast, entity, number, or technical-term boundaries while preserving a complete spoken meaning.
+- Bottom subtitles default to large short-video captions. For 1080x1920 Chinese videos, normal subtitle size should be `78-82px` by default, with `72px` as the hard minimum; emphasis size should be `86-96px`, and captions must stay at two lines maximum.
+- Long subtitles must not be solved by shrinking the font. Do not shrink below `72px`; if a cue does not fit at or above `font_size_min_px`, split it on sentence, clause, breath, pause, contrast, entity, number, or technical-term boundaries while preserving a complete spoken meaning.
 - Generate or update `work/plan/style_contract.json` before writing any final render script. Bottom subtitles, keyword-highlight ASS, top topic banner, ordinary overlays, Remotion overlays, and HyperFrame overlays must read visual tokens from this file.
 - A persistent topic banner is allowed and recommended when the user wants every frame to communicate the video topic. It must summarize the full-video thesis or stable section, not duplicate the current subtitle.
+- Persistent topic banners should visually match a large two-line short-video headline: main title `80-84px`, subtitle line `72-78px`, black rounded rectangle background at `0.72-0.78` opacity, and a centered title-card box around `720-760px` wide by `210-240px` high unless a reference style overrides it.
 - The topic banner should stay in the upper safe area and may switch to compact mode during talking-head shots to avoid covering the face core. Do not put it in the same bottom region as subtitles.
 - If `persistent_topic_banner.required_for_final_render = true`, final render must fail when the banner is missing, not full-duration, out of safe area, clipped, overlapping subtitles, or duplicating active subtitle text.
 - Default to B-roll as the main picture, not the digital human and not HyperFrames. The normal priority is: `broll_fullscreen` -> `broll_with_overlay` -> `talking_head_fullscreen` -> `data_card_light` -> `hyperframe_logic` / `hyperframe_data`.
@@ -230,7 +231,7 @@ When the user dislikes a card, replace only that PNG using `00_edit_manifest.csv
 - `remediation_log.json` exists when any gate failed during production, and final blocking cites attempted fixes rather than only listing missing inputs.
 - The render script, ASS subtitles, ordinary overlays, Remotion overlays, and HyperFrame overlays read `style_contract.json` rather than hardcoding subtitle/title style.
 - Topic banner audit exists and passes, or records `user_disabled` because the user explicitly turned the banner off.
-- Subtitle style audit exists and confirms normal subtitles are at least `68px`, at most two lines, and not shrunk to fit long text.
+- Subtitle style audit exists and confirms normal subtitles are at least `72px`, default to the `78-82px` short-video range, at most two lines, and not shrunk to fit long text.
 - Layout QC report exists with `status: passed` before final render.
 - `output/qc/style_preview_contact_sheet.png`, `output/qc/probe_render.mp4`, `output/qc/probe_frames/`, and `output/qc/final_qc_frames/` exist.
 - Probe render decodes and covers representative talking-head, B-roll, topic-banner, and long-subtitle frames when those are present.

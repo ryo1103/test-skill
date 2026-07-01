@@ -194,6 +194,16 @@ def selected_banner(topic: dict) -> tuple[str, str]:
     return str(selected.get("main", "") or ""), str(selected.get("sub", "") or "")
 
 
+def banner_background_opacity(banner: dict) -> float:
+    background = str(banner.get("background", "") or "")
+    match = re.search(r"rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*([0-9.]+)\s*\)", background)
+    if not match:
+        match = re.search(r"black@([0-9.]+)", background)
+    if not match:
+        return 0.76
+    return max(0.0, min(1.0, float(match.group(1))))
+
+
 def build_filter(style: dict, topic: dict, row: dict) -> str:
     canvas = style.get("canvas", {})
     subtitle = style.get("subtitle", {})
@@ -210,14 +220,15 @@ def build_filter(style: dict, topic: dict, row: dict) -> str:
         main, sub = selected_banner(topic)
         position_key = "compact_position_for_talking_head" if (row.get("topic_banner_mode") == "compact") else "position"
         position = banner.get(position_key) or banner.get("position", {})
-        x = int(position.get("x", 96))
+        x = int(position.get("x", 170))
         y = int(position.get("y", 128))
-        w = int(position.get("width", 888))
-        h = int(position.get("height", 220))
+        w = int(position.get("width", 740))
+        h = int(position.get("height", 230))
         padding = int(banner.get("padding_px", 28))
-        main_size = int(banner.get("main_font_size_px", 76))
-        sub_size = int(banner.get("sub_font_size_px", 60))
-        filters.append(f"drawbox=x={x}:y={y}:w={w}:h={h}:color=black@0.72:t=fill")
+        main_size = int(banner.get("main_font_size_px", 82))
+        sub_size = int(banner.get("sub_font_size_px", 74))
+        opacity = banner_background_opacity(banner)
+        filters.append(f"drawbox=x={x}:y={y}:w={w}:h={h}:color=black@{opacity:.2f}:t=fill")
         if main:
             filters.append(
                 "drawtext="
@@ -235,7 +246,7 @@ def build_filter(style: dict, topic: dict, row: dict) -> str:
 
     script = clean_text(row.get("script", ""), 30)
     if script:
-        font_size = int(subtitle.get("font_size_px", 76))
+        font_size = int(subtitle.get("font_size_px", 80))
         bottom_margin = int(subtitle.get("bottom_margin_px", 240))
         outline = int(subtitle.get("outline_px", 6))
         y_expr = f"h-{bottom_margin}-{font_size}"

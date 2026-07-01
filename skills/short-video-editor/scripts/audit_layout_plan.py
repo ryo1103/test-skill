@@ -119,7 +119,7 @@ def estimate_subtitle_rect(style: dict, line_count: int | None = None) -> dict:
     width = int(canvas.get("width", 1080))
     height = int(canvas.get("height", 1920))
     horizontal = int(subtitle.get("horizontal_margin_px", 72))
-    font_size = int(subtitle.get("font_size_px", 76))
+    font_size = int(subtitle.get("font_size_px", 80))
     max_lines = int(subtitle.get("line_count_max", 2))
     lines = min(line_count or max_lines, max_lines)
     box_height = math.ceil(font_size * 1.28 * max(1, lines))
@@ -257,7 +257,7 @@ def main():
     required_banner = bool(banner.get("required_for_final_render", False))
 
     font_size = int(to_float(subtitle.get("font_size_px"), 0))
-    min_font = int(to_float(subtitle.get("font_size_min_px"), 68))
+    min_font = int(to_float(subtitle.get("font_size_min_px"), 72))
     max_lines = int(to_float(subtitle.get("line_count_max"), 2))
     soft_chars = int(to_float(subtitle.get("chars_per_line_soft_max"), 14))
     cue_target_min = int(to_float(subtitle.get("chars_per_cue_target_min"), 6))

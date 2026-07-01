@@ -230,7 +230,7 @@ Required inputs:
 Checks:
 
 - `subtitle.mode = large_short_video_caption` unless the user explicitly requested another style.
-- For 1080x1920 Chinese video, normal subtitle size is at least `68px`; default target is `76px`.
+- For 1080x1920 Chinese video, normal subtitle size defaults to `78-82px` with `80px` as the default target and `72px` as the hard minimum.
 - Emphasis subtitles, when used, stay in the `86-96px` range.
 - Subtitle line count is at most two.
 - Long cue text is split semantically instead of shrinking below the minimum font size.
@@ -249,7 +249,7 @@ Remediation before blocking:
 - Rebuild subtitle cues from audio-derived timings when the cue plan is draft/proportional.
 - Split long cues on semantic/audio phrase boundaries, not fixed character counts.
 - Remove non-semantic punctuation from burned captions.
-- Keep font size at or above the configured minimum and solve fit by splitting or repositioning.
+- Keep font size at or above the configured minimum, never below `72px`, and solve fit by splitting or repositioning.
 
 ### `topic_banner_guard`
 
@@ -269,6 +269,7 @@ Checks:
 - Banner does not copy the current bottom subtitle.
 - Banner stays in the upper safe area.
 - Talking-head shots use compact mode when needed to avoid covering the face core.
+- Banner visually matches a large two-line short-video headline: main title `80-84px`, subtitle line `72-78px`, black rounded rectangle at `0.72-0.78` opacity, and a centered `720-760px` by `210-240px` title-card box unless a reference style overrides it.
 
 Failure conditions:
 

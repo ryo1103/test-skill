@@ -191,8 +191,8 @@ Use `large_short_video_caption` for ordinary Chinese Douyin/WeChat Channels/Shor
 
 Default visual rules for `1080x1920`:
 
-- Normal bottom subtitle: `68-82px`, default `76px`.
-- Emphasis subtitle: `86-96px`, default `88px`.
+- Normal bottom subtitle: `78-82px`, default `80px`, with `72px` as the hard minimum.
+- Emphasis subtitle: `86-96px`, default `92px`.
 - Font weight: bold enough for mobile, usually `800`.
 - Line count: maximum two lines.
 - Cue length: target `6-14` Chinese characters per burned cue, hard max `18` except named entities.
@@ -203,7 +203,7 @@ Default visual rules for `1080x1920`:
 
 Long subtitle policy:
 
-- Do not shrink below `font_size_min_px` to fit long text.
+- Do not shrink below `72px` or `font_size_min_px` to fit long text.
 - Do not use three-line paragraph subtitles.
 - Burned subtitles must be short spoken fragments, not full written sentences.
 - Remove visible punctuation such as `，。；：` unless semantically required.
@@ -223,6 +223,7 @@ Rules:
 - It should normally remain visible through the full video.
 - It must not duplicate the current bottom subtitle or mirror subtitles sentence by sentence.
 - Main title should usually be `8-16` Chinese characters; subtitle should usually be `10-22` Chinese characters.
+- Style it like a large two-line short-video headline: main title `80-84px`, subtitle line `72-78px`, black rounded rectangle background at `0.72-0.78` opacity, centered title-card box around `720-760px` wide and `210-240px` high.
 - Place it in the upper safe area. For talking-head shots, use compact mode if the normal banner would cover the face core.
 - Use strong contrast: dark translucent background, mint/cyan title, white subtitle, glow/outline if needed.
 - Keep it visually stable. Do not change it every sentence; section banners are only for clear chapters.
