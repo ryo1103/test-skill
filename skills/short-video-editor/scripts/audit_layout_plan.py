@@ -31,6 +31,10 @@ def normalize_text(text: str) -> str:
     return re.sub(r"[\s，。！？!?,.、：:；;（）()【】\[\]\"'“”‘’\-—_]", "", text or "").lower()
 
 
+def contains_visible_punctuation(text: str) -> bool:
+    return bool(re.search(r"[，。；：、,.!?！？;:]", text or ""))
+
+
 def to_float(value: Any, default: float = 0.0) -> float:
     try:
         if value in ("", None):
@@ -105,6 +109,11 @@ def get_subtitle_cues(path: Path) -> list[dict]:
         if isinstance(cues, list):
             return cues
     return []
+
+
+def get_subtitle_payload(path: Path) -> dict:
+    payload = read_json(path, {})
+    return payload if isinstance(payload, dict) else {"alignment_method": "", "cues": payload if isinstance(payload, list) else []}
 
 
 def cue_text(cue: dict) -> str:
@@ -194,6 +203,7 @@ def main():
 
     style = read_json(style_path, {})
     topic = read_json(topic_path, {})
+    subtitle_payload = get_subtitle_payload(cues_path)
     cues = get_subtitle_cues(cues_path)
     shot_plan = read_json(shot_plan_path, {})
     manifest_rows = read_manifest(manifest_path)
@@ -218,6 +228,9 @@ def main():
     min_font = int(to_float(subtitle.get("font_size_min_px"), 68))
     max_lines = int(to_float(subtitle.get("line_count_max"), 2))
     soft_chars = int(to_float(subtitle.get("chars_per_line_soft_max"), 14))
+    cue_target_min = int(to_float(subtitle.get("chars_per_cue_target_min"), 6))
+    cue_target_max = int(to_float(subtitle.get("chars_per_cue_target_max"), 14))
+    cue_hard_max = int(to_float(subtitle.get("chars_per_cue_hard_max"), 18))
     subtitle_rect = estimate_subtitle_rect(style)
 
     if font_size < min_font:
@@ -233,24 +246,107 @@ def main():
 
     subtitle_failures: list[dict] = []
     long_cue_failures: list[dict] = []
+    alignment_method = str(subtitle_payload.get("alignment_method", "") or "")
+    allowed_alignment_methods = {
+        "asr_word_timestamps",
+        "asr_word",
+        "forced_alignment",
+        "phrase_timestamps",
+        "manual_phrase_timestamps",
+        "manual_phrase",
+        "manual_timestamp",
+    }
+    if alignment_method == "script_length_proportional_draft_only":
+        item = {
+            "code": "final_render_blocked_draft_alignment_only",
+            "alignment_method": alignment_method,
+            "allowed_output": "output/draft_preview.mp4",
+            "blocked_output": "output/final.mp4",
+        }
+        subtitle_failures.append(item)
+        failures.append(item)
+    elif alignment_method and alignment_method not in allowed_alignment_methods:
+        item = {
+            "code": "subtitle_alignment_method_not_audio_derived",
+            "alignment_method": alignment_method,
+            "allowed_methods": sorted(allowed_alignment_methods),
+        }
+        subtitle_failures.append(item)
+        failures.append(item)
+    if not cues:
+        item = {
+            "code": "missing_subtitle_cues_for_final",
+            "path": str(cues_path),
+        }
+        subtitle_failures.append(item)
+        failures.append(item)
     for cue in cues:
         text = cue_text(cue)
         line_count = cue_line_count(cue, soft_chars)
+        cue_id = cue.get("cue_id") or cue.get("id") or ""
+        cue_norm_len = len(normalize_text(text))
+        alignment_source = str(cue.get("alignment_source", "") or "")
+        sync_confidence = str(cue.get("sync_confidence", "") or "").lower()
+        start_sec = cue.get("start_sec", cue.get("start"))
+        end_sec = cue.get("end_sec", cue.get("end"))
+        has_audio_timing = to_float(end_sec, -1) > to_float(start_sec, -1) >= 0
+        source_is_audio_derived = (
+            alignment_source in allowed_alignment_methods
+            or alignment_method in allowed_alignment_methods
+        )
+        if not has_audio_timing or not source_is_audio_derived:
+            item = {
+                "code": "subtitle_cue_missing_audio_derived_timing",
+                "cue_id": cue_id,
+                "alignment_method": alignment_method,
+                "alignment_source": alignment_source,
+                "start": start_sec,
+                "end": end_sec,
+            }
+            subtitle_failures.append(item)
+            failures.append(item)
+        if sync_confidence in {"low", "very_low", "proportional", "draft"}:
+            item = {
+                "code": "subtitle_cue_low_sync_confidence",
+                "cue_id": cue_id,
+                "sync_confidence": sync_confidence,
+            }
+            subtitle_failures.append(item)
+            failures.append(item)
+        if contains_visible_punctuation(text) and not cue.get("punctuation_semantic_required", False):
+            item = {
+                "code": "subtitle_visible_punctuation_not_removed",
+                "cue_id": cue_id,
+                "text": text,
+            }
+            subtitle_failures.append(item)
+            failures.append(item)
+        if cue_norm_len > cue_hard_max and not cue.get("allow_long_named_entity", False):
+            item = {
+                "code": "subtitle_cue_too_long_for_burned_caption",
+                "cue_id": cue_id,
+                "chars": cue_norm_len,
+                "hard_max": cue_hard_max,
+                "target": f"{cue_target_min}-{cue_target_max}",
+                "text": text,
+            }
+            subtitle_failures.append(item)
+            failures.append(item)
         if line_count > max_lines:
             item = {
                 "code": "subtitle_exceeds_line_count",
-                "cue_id": cue.get("cue_id") or cue.get("id") or "",
+                "cue_id": cue_id,
                 "line_count": line_count,
                 "max_lines": max_lines,
                 "text": text,
             }
             subtitle_failures.append(item)
             failures.append(item)
-        hard_capacity = soft_chars * max_lines + 4
+        hard_capacity = min(soft_chars * max_lines + 4, cue_hard_max)
         if subtitle.get("forbid_shrinking_below_min", True) and len(normalize_text(text)) > hard_capacity:
             item = {
                 "code": "long_subtitle_requires_semantic_split",
-                "cue_id": cue.get("cue_id") or cue.get("id") or "",
+                "cue_id": cue_id,
                 "chars": len(normalize_text(text)),
                 "hard_capacity": hard_capacity,
                 "text": text,
@@ -392,6 +488,12 @@ def main():
         "font_size_min_px": min_font,
         "line_count_max": max_lines,
         "chars_per_line_soft_max": soft_chars,
+        "chars_per_cue_target_min": cue_target_min,
+        "chars_per_cue_target_max": cue_target_max,
+        "chars_per_cue_hard_max": cue_hard_max,
+        "alignment_method": alignment_method,
+        "final_render_blocked": any(item.get("code") == "final_render_blocked_draft_alignment_only" for item in subtitle_failures),
+        "allowed_output_when_blocked": "output/draft_preview.mp4",
         "cue_count": len(cues),
         "subtitle_box": subtitle_rect,
         "failures": subtitle_failures

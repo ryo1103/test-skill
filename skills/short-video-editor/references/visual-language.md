@@ -147,6 +147,11 @@ digital human is better for trust -1
 
 Only use HyperFrame when `hyperframe_score >= 3`, and record `hyperframe_reason`, `visual_pattern`, and `why_simple_broll_is_not_enough`.
 
+Required HyperFrame/AE trigger:
+
+- For any shot expressing 2+ KPI changes, cost/efficiency/risk pressure, process migration, before/after comparison, or `not X but Y` decision logic, default to `renderer: hyperframe` or `ae_overlay`.
+- Downgrade only after writing `downgrade_reason`, `why_simple_broll_is_enough`, and a user-visible warning.
+
 Use HyperFrame for:
 
 - Key comparison: side-by-side, before/after, comparison matrix.
@@ -190,6 +195,7 @@ Default visual rules for `1080x1920`:
 - Emphasis subtitle: `86-96px`, default `88px`.
 - Font weight: bold enough for mobile, usually `800`.
 - Line count: maximum two lines.
+- Cue length: target `6-14` Chinese characters per burned cue, hard max `18` except named entities.
 - Soft line length: roughly `14` Chinese characters per line.
 - Bottom margin: keep the subtitle above the platform/player danger zone, default around `240px`.
 - Outline/shadow: strong enough to read over bright B-roll, default outline around `6px` plus subtle shadow.
@@ -199,9 +205,12 @@ Long subtitle policy:
 
 - Do not shrink below `font_size_min_px` to fit long text.
 - Do not use three-line paragraph subtitles.
+- Burned subtitles must be short spoken fragments, not full written sentences.
+- Remove visible punctuation such as `，。；：` unless semantically required.
 - Split long cues semantically by sentence, clause, breath, pause, contrast, named entity, number, technical term, or cause-effect boundary.
 - Keep each cue as a complete spoken phrase or meaningful clause.
 - Audio timing is mandatory for final render; a subtitle cannot start before the spoken phrase or linger after it.
+- Low-confidence, proportional, or draft-only cue timing fails final render.
 
 ## Persistent Topic Banner
 
@@ -238,6 +247,8 @@ Implementation rules:
 - Segment by spoken meaning first, readability second. Each cue should be a complete spoken phrase or meaningful clause; do not split mechanically at a fixed character count such as 12 Chinese characters.
 - Keep cues visually concise, but treat character count as a soft warning. If a complete spoken phrase is slightly longer, use two balanced lines or a slightly longer cue rather than cutting a phrase, number, named entity, technical term, comparison, or cause-effect unit in half.
 - Cue timing must follow the audio. Start at the first spoken word and end after the last spoken word, with only small readability padding; do not allocate subtitle time from script length alone for a final render.
+- For final burned captions, target `6-14` Chinese characters per cue and hard-stop over `18` except named entities.
+- Remove visible punctuation from burned captions unless semantically required.
 - Split technical clauses into multiple cue texts only at natural semantic/audio boundaries instead of shrinking the font or burning three-line paragraph subtitles.
 - Do not show the same subtitle text on consecutive visual frames. If the spoken sentence spans several visuals, split it into several semantic cue-level subtitles and highlight the current keyword only.
 - Use at most 1-2 accent colors, normally one cyan/mint and one warm/pink/yellow emphasis color.
@@ -245,6 +256,7 @@ Implementation rules:
 - Do not add an upper/middle title box that repeats the highlighted subtitle.
 - Verify highlighted subtitles do not collide with cards, source marks, player-safe margins, or HyperFrame labels.
 - Verify subtitle sync and phrasing in QC: representative frames should show the phrase currently being spoken, and cue text should not appear before the speaker says it or linger after the phrase has ended.
+- Fail visual QA if preview/probe frames show subtitle text clipped, cropped by player controls, too long horizontally, or occupying more than two balanced lines.
 
 ## Card Density
 

@@ -139,7 +139,7 @@ Create `work/plan/subtitle_cues.json` before final rendering:
     "final_render_requires_audio_alignment": true,
     "semantic_complete_cue_required": true,
     "character_count_is_soft_limit": true,
-    "target_readability": "one short spoken phrase, or two balanced lines when the phrase must stay intact",
+    "target_readability": "short spoken fragment, target 6-14 Chinese characters, hard max 18 except named entities",
     "max_same_subtitle_reuse": 1,
     "sync_tolerance_sec": 0.25
   },
@@ -160,7 +160,9 @@ Create `work/plan/subtitle_cues.json` before final rendering:
       "visual_intent": "talking_head | broll | motion_card | data_card",
       "asset_keywords": [],
       "preferred_asset_id": "",
-      "subtitle_line_count": 1
+      "subtitle_line_count": 1,
+      "punctuation_semantic_required": false,
+      "allow_long_named_entity": false
     }
   ]
 }
@@ -169,8 +171,12 @@ Create `work/plan/subtitle_cues.json` before final rendering:
 Rules:
 
 - Final MP4 subtitle timing must come from the audio: ASR word timestamps, phrase timestamps, or forced alignment between the supplied script and oral audio. If no reliable audio alignment is available, stop before final render and report the missing transcription/alignment dependency. A script-length proportional timeline may be saved only as a rough planning preview and must be marked `script_length_proportional_draft_only`.
+- If `alignment_method = script_length_proportional_draft_only`, do not render `output/final.mp4`. Render only `output/draft_preview.mp4`, mark final delivery blocked, and explain that audio-derived cue timing is required.
+- Every final cue must have audio-derived `start_sec` and `end_sec` from ASR, forced alignment, phrase timestamps, or manual phrase timestamps. Low-confidence/proportional/missing cue timing fails final render.
 - Segment subtitles by meaning first. Start with sentence and clause boundaries, then refine by ASR pauses/breaths, contrast pivots, emphasis, and natural spoken phrase boundaries. Each cue must be a complete spoken phrase or meaningful clause; do not cut midway through a subject-predicate-object phrase, number, named entity, technical term, comparison, or cause-effect unit.
-- Character count is a readability check, not a splitter. Prefer compact cues, but do not force every cue into a fixed `12`-character window. If a complete spoken phrase is slightly longer, use two balanced lines or a slightly longer cue rather than breaking the phrase unnaturally.
+- Burned subtitles must be short spoken fragments, not full written sentences. For Chinese captions, target `6-14` Chinese characters per cue and hard-stop above `18` characters except named entities.
+- Remove visible punctuation such as `，。；：` from burned captions unless it is semantically required.
+- Character count is a readability check, not the first segmentation algorithm. First split on semantic/audio boundaries, then revise any cue that exceeds the short-cue target.
 - Cue start/end must track the spoken words: start at the first word in that cue and end after the final word, with only small readability padding. Keep a sync tolerance target around `0.15-0.25s`; flag any cue whose text begins or ends noticeably before/after the audio.
 - The same subtitle text must not remain visible across multiple B-roll or motion-card cuts. If a sentence spans several visual beats, split it at natural semantic/audio boundaries, not at arbitrary character counts.
 - Use cue boundaries as edit boundaries. Cut B-roll on every semantic cue or every two very short adjacent cues.
@@ -238,6 +244,8 @@ B-roll rules:
 HyperFrame rules:
 
 - HyperFrames are allowed only for key comparison, key process, time change, cause-effect chain, core data, system structure, professional architecture, or a key business/technical mechanism.
+- HyperFrame or AE overlay is required by default for any shot expressing 2+ KPI changes, cost/efficiency/risk pressure, process migration, before/after comparison, or `not X but Y` decision logic.
+- Downgrade a required-trigger shot only after writing `downgrade_reason`, `why_simple_broll_is_enough`, and a user-visible warning in the plan.
 - Do not upgrade ordinary background, generic concepts, emotional transitions, or general opinions into HyperFrames.
 - Do not let any continuous HyperFrame block exceed `15s`.
 - HyperFrames should follow a refined tech/business news style when the user provides similar references: dark relevant footage or video-derived background, cinematic blur/vignette, deep navy glass panels, mint/cyan and magenta accents, large metrics, neon node/line systems, and complete reveal-build-hold-settle animation. Avoid rough grid diagrams, flat boxes, cluttered labels, and image-collage placeholders.
@@ -302,7 +310,7 @@ Rules:
 Create `work/plan/visual_strategy.csv` with:
 
 ```csv
-shot,script_fragment,narrative_role,logic_type,scene_type,renderer,digital_human_presence,digital_human_reason,broll_keywords,overlay_text,data_visual_type,hyperframe_score,hyperframe_allowed,hyperframe_reason,why_simple_broll_is_not_enough,visual_pattern,ae_overlay_candidate,ae_overlay_type,broll_base_asset,overlay_layer_plan,design_plan,animation_plan,hyperframe_polish_guard,hyperframe_completeness_check,editing_rhythm,screen_text,user_review_needed
+shot,script_fragment,narrative_role,logic_type,scene_type,renderer,digital_human_presence,digital_human_reason,broll_keywords,overlay_text,data_visual_type,hyperframe_score,hyperframe_allowed,hyperframe_reason,why_simple_broll_is_not_enough,downgrade_reason,why_simple_broll_is_enough,visual_pattern,ae_overlay_candidate,ae_overlay_type,broll_base_asset,overlay_layer_plan,design_plan,animation_plan,hyperframe_polish_guard,hyperframe_completeness_check,editing_rhythm,screen_text,user_review_needed
 ```
 
 Rules:
@@ -316,6 +324,7 @@ Rules:
 - Every semantic unit must explicitly fill `ae_overlay_candidate`, `ae_overlay_type`, `visual_pattern`, `hyperframe_score`, `hyperframe_allowed`, `broll_base_asset`, `overlay_layer_plan`, `design_plan`, and `animation_plan`.
 - HyperFrame is allowed only when `hyperframe_score >= 3` and `why_simple_broll_is_not_enough` is defensible.
 - AE/HyperFrame should normally be an overlay above selected B-roll or a video-derived background. Standalone full-screen cards are allowed only for justified key logic/data moments.
+- Required-trigger AE/HyperFrame shots may be downgraded only with `downgrade_reason`, `why_simple_broll_is_enough`, and a user-visible warning.
 - If a candidate overlay is uncertain or may feel like PPT filler, set `user_review_needed: yes`.
 - Default visual priority is `broll_fullscreen` -> `broll_with_overlay` -> `talking_head_fullscreen` -> `data_card_light` -> `hyperframe_logic` / `hyperframe_data`.
 - Use full-screen digital human for opening brand, core question, chapter switch, strong judgment, pre-complex-content trust beat, or conclusion. Ordinary narration should use B-roll or B-roll with light overlay.
@@ -619,13 +628,17 @@ Required checks:
 1. `subtitle.font_size_px >= subtitle.font_size_min_px`.
 2. Subtitle line count is at most two.
 3. Subtitle box stays inside the configured safe layout.
-4. When `persistent_topic_banner.enabled = true`, the banner covers `0` to full duration unless the user disabled it.
-5. Banner does not copy the current subtitle.
-6. Banner box and subtitle box do not overlap.
-7. Banner box stays in the upper safe layout; compact mode is allowed for talking-head face clearance.
-8. HyperFrame/design cards do not occupy the subtitle area.
-9. Long subtitles are semantically split; shrinking below the minimum font size is forbidden.
-10. If the user explicitly disables the banner, record `user_disabled` and do not fail for missing banner.
+4. `subtitle_cues.alignment_method` is audio-derived; `script_length_proportional_draft_only` blocks final render.
+5. Every final cue has audio-derived start/end and no low-confidence timing.
+6. Burned subtitle cues target `6-14` Chinese characters and hard-stop above `18` except named entities.
+7. Visible punctuation is removed unless semantically required.
+8. When `persistent_topic_banner.enabled = true`, the banner covers `0` to full duration unless the user disabled it.
+9. Banner does not copy the current subtitle.
+10. Banner box and subtitle box do not overlap.
+11. Banner box stays in the upper safe layout; compact mode is allowed for talking-head face clearance.
+12. HyperFrame/design cards do not occupy the subtitle area.
+13. Long subtitles are semantically split; shrinking below the minimum font size is forbidden.
+14. If the user explicitly disables the banner, record `user_disabled` and do not fail for missing banner.
 
 Process:
 
@@ -636,7 +649,7 @@ Process:
    - `work/plan/layout_qc_report.json`
    - `work/plan/topic_banner_audit.json`
    - `work/plan/subtitle_style_audit.json`
-5. If any audit fails, revise subtitle cue splitting, banner compact mode, banner size, allowed font size, or safe-area layout, then regenerate preview and audit.
+5. If any audit fails, revise subtitle cue splitting, audio alignment, banner compact mode, banner size, allowed font size, or safe-area layout, then regenerate preview and audit.
 6. Only `layout_qc_report.json.status == "passed"` permits full render.
 
 Probe render gate:
@@ -644,7 +657,7 @@ Probe render gate:
 - Before full render, generate `8-15s` of `output/qc/probe_render.mp4`.
 - The probe must cover at least one talking-head shot, one B-roll shot, one topic-banner frame, and one long-subtitle frame when those exist in the manifest.
 - Extract probe frames to `output/qc/probe_frames/`.
-- If probe decoding fails, subtitles are too small, the banner is missing, text overflows, elements overlap, or representative frames show unsafe layout, stop before full render.
+- If probe decoding fails, subtitles are too small, subtitles are clipped/cropped by player controls, text is too long horizontally, captions occupy more than two balanced lines, the banner is missing, text overflows, elements overlap, or representative frames show unsafe layout, stop before full render.
 
 ## Workflow Integration Gate
 
@@ -652,7 +665,7 @@ Before final render, confirm all old and new gates passed:
 
 1. `style_contract.json` exists.
 2. `video_topic.json` exists.
-3. `subtitle_cues.json` is audio-aligned.
+3. `subtitle_cues.json` is audio-aligned and not `script_length_proportional_draft_only`.
 4. `visual_strategy.csv` exists and includes AE/PPT/HyperFrame candidate decisions.
 5. `shot_plan.json` exists and all B-roll shots have `broll_keywords`.
 6. `asset_search_plan.json` exists and all needed B-roll shots have selected assets or documented shortage.
@@ -691,7 +704,7 @@ Render from audio-aligned semantic cue-level timing:
 8. Generate `.srt` and `.ass` from the same cue list used by the visual timeline.
 9. Run `source_uniqueness_audit.json` and `source_playback_audit.json`.
 10. Generate `style_preview_contact_sheet.png`, run `audit_layout_plan.py`, render `probe_render.mp4`, and extract probe frames.
-11. Fail the render if cues are not audio-aligned, if a cue breaks semantic phrasing unnaturally, if subtitle text repeats across multiple visual cuts, if subtitles are below `68px`, if any subtitle has more than two lines, if the required topic banner is missing/duplicative/overlapping, if any B-roll source is reused, or if any source playback loop/restart/rewind is found outside approved still fallback.
+11. Fail the render if cues are not audio-aligned, if the cue plan is `script_length_proportional_draft_only`, if any cue has low-confidence/proportional timing, if a cue breaks semantic phrasing unnaturally, if subtitle text repeats across multiple visual cuts, if burned subtitle cues exceed the short-cue target, if subtitles are below `68px`, if any subtitle has more than two lines, if the required topic banner is missing/duplicative/overlapping, if any B-roll source is reused, or if any source playback loop/restart/rewind is found outside approved still fallback.
 
 Common render outputs:
 

@@ -51,7 +51,11 @@ Default for 1080x1920, 30fps Chinese vertical short videos:
     "font_size_emphasis_px": 88,
     "font_weight": 800,
     "line_count_max": 2,
+    "chars_per_cue_target_min": 6,
+    "chars_per_cue_target_max": 14,
+    "chars_per_cue_hard_max": 18,
     "chars_per_line_soft_max": 14,
+    "visible_punctuation_policy": "remove_unless_semantic_required",
     "bottom_margin_px": 240,
     "horizontal_margin_px": 72,
     "outline_px": 6,
@@ -60,7 +64,10 @@ Default for 1080x1920, 30fps Chinese vertical short videos:
     "keyword_color": "#00E5FF",
     "secondary_keyword_color": "#7CFFB2",
     "forbid_three_line_subtitles": true,
-    "forbid_shrinking_below_min": true
+    "forbid_shrinking_below_min": true,
+    "require_audio_derived_timing_for_final": true,
+    "fail_low_confidence_timing_for_final": true,
+    "draft_alignment_output_policy": "draft_preview_only"
   },
   "persistent_topic_banner": {
     "enabled": true,
@@ -223,8 +230,12 @@ The persistent topic banner is a topic anchor / visual thesis. It is not a secon
 - Normal subtitle size should be `68-82px` for 1080x1920.
 - Emphasis size should be `86-96px`.
 - Maximum subtitle line count is 2.
+- Burned subtitle cues should be short spoken fragments, target `6-14` Chinese characters, hard max `18` except named entities.
+- Remove visible punctuation such as `，。；：` unless semantically required.
 - Long subtitles must be semantically split; do not shrink below `font_size_min_px` to force long text into one cue.
 - Each cue must remain a complete spoken phrase or meaningful clause and must use audio-derived timing for final renders.
+- If `subtitle_cues.alignment_method = script_length_proportional_draft_only`, do not render `output/final.mp4`; render only `output/draft_preview.mp4` and mark final blocked.
+- Every final cue must have audio-derived timing from ASR, forced alignment, or manual phrase timestamps. Low-confidence/proportional cues fail final render.
 
 ## Required Gates Before Final
 
@@ -238,4 +249,4 @@ Final render must not start until all are true:
 - `output/qc/style_preview_contact_sheet.png` exists.
 - `output/qc/probe_render.mp4` exists, decodes, and representative probe frames exist.
 
-Fail the final render if the required topic banner is missing, subtitles are below minimum size, subtitles exceed two lines, title/subtitle text is clipped, banner and subtitle boxes overlap, HyperFrame/design cards occupy the subtitle zone, or preview/probe frames show unsafe layout.
+Fail the final render if the required topic banner is missing, subtitles are below minimum size, subtitle timing is draft/proportional/low-confidence, subtitles exceed two lines or the hard cue length, visible punctuation remains without a semantic flag, title/subtitle text is clipped, banner and subtitle boxes overlap, HyperFrame/design cards occupy the subtitle zone, or preview/probe frames show unsafe layout.
