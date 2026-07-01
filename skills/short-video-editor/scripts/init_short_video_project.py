@@ -349,6 +349,14 @@ SUBTITLE_STYLE_AUDIT_TEMPLATE = {
     "warnings": [],
 }
 
+REMEDIATION_LOG_TEMPLATE = {
+    "status": "not_run",
+    "attempts": [],
+    "unresolved_blockers": [],
+    "final_block_allowed": False,
+    "notes": "When a gate fails, attempt built-in remediation before writing output/FINAL_BLOCKED.md.",
+}
+
 ASSET_MANIFEST_TEMPLATE = {
     "assets": []
 }
@@ -459,6 +467,7 @@ def main():
     write_json_if_missing(root / "work" / "plan" / "layout_qc_report.json", LAYOUT_QC_REPORT_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "topic_banner_audit.json", TOPIC_BANNER_AUDIT_TEMPLATE)
     write_json_if_missing(root / "work" / "plan" / "subtitle_style_audit.json", SUBTITLE_STYLE_AUDIT_TEMPLATE)
+    write_json_if_missing(root / "work" / "plan" / "remediation_log.json", REMEDIATION_LOG_TEMPLATE)
     write_json_if_missing(root / "assets" / "metadata" / "asset_manifest.json", ASSET_MANIFEST_TEMPLATE)
     write_json_if_missing(root / "assets_library" / "asset_index.json", ASSET_INDEX_TEMPLATE)
     write_text_if_missing(root / "assets" / "素材来源.md", "# 素材来源\n\n")

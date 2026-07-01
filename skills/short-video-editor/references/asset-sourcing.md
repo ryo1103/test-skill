@@ -85,9 +85,10 @@ When an API source is useful or required but its key is missing:
    ```
 
 2. Tell the user which provider key is missing and ask them to create `.env` from `.env.example`.
-3. Stop before running that API provider. Do not silently skip it on the first pass.
-4. If the user says they do not have the key or explicitly asks to continue without it, mark that provider attempt as `needs_api_key` in `video_source_audit.csv` or `asset_search_plan.json`, then continue searching non-API public pages, visible direct downloads, official/media-kit sources, Wikimedia/Openverse-style sources, and authorized screen recordings.
-5. Do not claim API search/download was completed when the key was missing. If non-API continuation still cannot acquire enough assets, stop at the sourcing gate with a shortage report.
+3. Stop before running that API provider only. Do not silently skip it on the first pass, but do not stop the entire sourcing stage while non-API public pages, visible direct downloads, official/media-kit sources, Wikimedia/Openverse-style sources, or authorized screen recordings remain available.
+4. If the user says they do not have the key or explicitly asks to continue without it, mark that provider attempt as `needs_api_key` in `video_source_audit.csv` or `asset_search_plan.json`, then continue searching the remaining lawful paths.
+5. Ask the user again only when the missing-key API provider is the only remaining lawful route for enough relevant素材, or when a screen recording requires explicit user authorization.
+6. Do not claim API search/download was completed when the key was missing. If non-API continuation still cannot acquire enough assets, stop at the sourcing gate with a shortage report and include the attempted fallback paths.
 
 ## Script-To-Asset Analysis
 
@@ -276,8 +277,8 @@ Search in this order.
 
    Provider notes:
 
-   - **Pexels**: Use the official Videos API when `PEXELS_API_KEY` is available. Read from environment variable `PEXELS_API_KEY` or the project-root `.env`; send it in the `Authorization` header. Use `/v1/videos/search`; record the video page URL, selected file URL, and Pexels license note. Do not hardcode API keys in scripts. If the key is missing, create/update `.env.example` and pause. Continue without Pexels API only after the user says they have no key or asks to continue; then mark `download_status: needs_api_key`.
-   - **Pixabay**: Use the Pixabay Videos API when `PIXABAY_API_KEY` is available from environment or project `.env`; otherwise use manual/public search only after the missing-key pause/continue decision. Record `pageURL`, user, tags, duration, and Pixabay license note. If the key is missing and the user says to continue, mark `download_status: needs_api_key` for API attempts.
+   - **Pexels**: Use the official Videos API when `PEXELS_API_KEY` is available. Read from environment variable `PEXELS_API_KEY` or the project-root `.env`; send it in the `Authorization` header. Use `/v1/videos/search`; record the video page URL, selected file URL, and Pexels license note. Do not hardcode API keys in scripts. If the key is missing, create/update `.env.example`, pause only the Pexels API attempt, record `download_status: needs_api_key`, and keep searching other lawful providers/sources unless Pexels is the only remaining lawful path.
+   - **Pixabay**: Use the Pixabay Videos API when `PIXABAY_API_KEY` is available from environment or project `.env`; otherwise pause only the Pixabay API attempt, record `download_status: needs_api_key`, and keep searching manual/public/direct/official/open-license sources. Record `pageURL`, user, tags, duration, and Pixabay license note when the API is used.
    - **Coverr**: Check for directly downloadable stock videos and current license/terms on the clip page. Record the clip page URL. If the site blocks automated download or requires interaction, mark the attempt and use another source.
    - **Mixkit**: Check Mixkit stock video pages for downloadable clips and license terms. Record the clip page URL and Mixkit license note.
    - **Videvo**: Check the exact clip license. Use only clips with free/permissive terms suitable for the project; some clips require attribution or have restrictions. Record the clip page URL and license name.

@@ -35,6 +35,38 @@ def contains_visible_punctuation(text: str) -> bool:
     return bool(re.search(r"[，。；：、,.!?！？;:]", text or ""))
 
 
+REMEDIATION_BY_CODE = {
+    "missing_style_contract": "Run create_style_contract.py or restore work/plan/style_contract.json before rendering.",
+    "subtitle_font_below_min": "Restore large_short_video_caption defaults or increase subtitle.font_size_px to at least font_size_min_px.",
+    "subtitle_box_outside_safe_area": "Adjust subtitle bottom/horizontal margins in style_contract.json and rerun layout preview.",
+    "final_render_blocked_draft_alignment_only": "Extract oral audio, run available ASR/Whisper/forced alignment or import manual phrase timestamps, rebuild subtitle_cues.json, then rerun audit. Render only draft_preview.mp4 if no timing path is available.",
+    "subtitle_alignment_method_not_audio_derived": "Change subtitle timing to ASR word timestamps, forced alignment, phrase timestamps, or manual phrase timestamps.",
+    "missing_subtitle_cues_for_final": "Generate subtitle_cues.json from the oral audio and script before final rendering.",
+    "subtitle_cue_missing_audio_derived_timing": "Rebuild this cue with audio-derived start/end from ASR, forced alignment, or manual phrase timestamps.",
+    "subtitle_cue_low_sync_confidence": "Realign this cue to the spoken phrase or mark final blocked only after alignment remediation fails.",
+    "subtitle_visible_punctuation_not_removed": "Remove visible punctuation from burned captions unless punctuation_semantic_required is true.",
+    "subtitle_cue_too_long_for_burned_caption": "Split this caption into shorter spoken fragments on semantic/audio boundaries.",
+    "subtitle_exceeds_line_count": "Split or re-balance this cue so it renders in at most two subtitle lines.",
+    "long_subtitle_requires_semantic_split": "Do not shrink text; split the cue by clause, breath pause, contrast, entity, number, or technical term boundary.",
+    "required_topic_banner_missing": "Generate video_topic.json selected_banner automatically from the script or ask only if the topic is genuinely ambiguous.",
+    "topic_banner_does_not_start_at_zero": "Set persistent_topic_banner.visible_start_sec to 0 or explicitly disable the banner by user request.",
+    "topic_banner_does_not_cover_full_duration": "Set visible_end_policy to full_duration or extend the banner through the full manifest duration.",
+    "topic_banner_outside_safe_area": "Adjust persistent_topic_banner.position inside the configured upper safe area.",
+    "compact_topic_banner_outside_safe_area": "Adjust compact_position_for_talking_head so the compact banner remains readable and safe.",
+    "topic_banner_overlaps_subtitle": "Move or resize the banner or subtitle box; keep topic banner in the upper safe area.",
+    "topic_banner_duplicates_subtitle": "Rewrite the banner as a whole-video topic thesis, not the current subtitle.",
+    "design_card_overlaps_subtitle_area": "Move, resize, or simplify the overlay/design card so it clears the subtitle zone.",
+}
+
+
+def attach_remediation(items: list[dict]) -> list[dict]:
+    for item in items:
+        code = item.get("code")
+        if code in REMEDIATION_BY_CODE and "remediation" not in item:
+            item["remediation"] = REMEDIATION_BY_CODE[code]
+    return items
+
+
 def to_float(value: Any, default: float = 0.0) -> float:
     try:
         if value in ("", None):
@@ -450,6 +482,9 @@ def main():
 
     subtitle_status = "failed" if subtitle_failures or any(item.get("code", "").startswith("subtitle_") for item in failures) else "passed"
     layout_status = "failed" if failures else "passed"
+    attach_remediation(failures)
+    attach_remediation(topic_failures)
+    attach_remediation(subtitle_failures)
 
     layout_report = {
         "status": layout_status,
@@ -460,6 +495,8 @@ def main():
         "checks": checks,
         "failures": failures,
         "warnings": warnings + topic_warnings,
+        "remediation_required": layout_status != "passed",
+        "remediation_log": str(plan_dir / "remediation_log.json"),
         "computed_boxes": {
             "subtitle": subtitle_rect,
             "topic_banner": banner.get("position", {}) if isinstance(banner, dict) else {},
@@ -480,6 +517,7 @@ def main():
         },
         "failures": topic_failures,
         "warnings": topic_warnings,
+        "remediation_required": topic_status == "failed",
     }
 
     subtitle_audit = {
@@ -499,6 +537,8 @@ def main():
         "failures": subtitle_failures
         + [item for item in failures if item.get("code") in {"subtitle_font_below_min", "subtitle_box_outside_safe_area"}],
         "warnings": [],
+        "remediation_required": subtitle_status == "failed",
+        "remediation_log": str(plan_dir / "remediation_log.json"),
     }
 
     write_json(plan_dir / "layout_qc_report.json", layout_report)

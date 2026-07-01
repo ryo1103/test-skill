@@ -13,7 +13,7 @@ Critical gate: after extracting script keywords, if matching local assets do not
 
 Timing gate: final edits should be audio-aligned and subtitle-driven, not large-shot driven. Build a cue timeline from the oral audio plus script before rendering; use those cue boundaries to cut B-roll, motion cards, and digital-human appearances. Subtitle splitting must preserve spoken meaning and phrase boundaries: do not hard-split by a fixed character count such as every 12 Chinese characters. Avoid long subtitles, repeated subtitles across multiple visual frames, and B-roll sections whose visual changes do not follow the spoken cue rhythm.
 
-Final render hard stop: if `subtitle_cues.alignment_method` is `script_length_proportional_draft_only`, do not render `output/final.mp4`. Only render `output/draft_preview.mp4`, mark final delivery blocked, and report the missing audio alignment dependency.
+Final render hard stop: if `subtitle_cues.alignment_method` is `script_length_proportional_draft_only`, do not render `output/final.mp4`. First run the subtitle alignment remediation loop: extract audio, look for available local ASR/Whisper/forced-alignment/manual phrase timestamp inputs, rebuild `subtitle_cues.json`, and rerun subtitle/layout audits. Only if no audio-derived timing path is available should you render `output/draft_preview.mp4`, mark final delivery blocked, and report the missing alignment dependency.
 
 Uniqueness gate: final edits must not reuse B-roll sources and must not replay a source after it has already been used. A source clip may be trimmed shorter once, but it must not be looped, restarted from the beginning, replayed from an earlier timestamp, or used as multiple source ranges. Audit the edit manifest and render commands for source playback ranges; expensive per-frame similarity checks are optional, not required. If replay/loop/rewind is detected outside an explicitly approved still-image fallback, revise the timeline, source more footage, or shorten coverage before rendering.
 
@@ -29,6 +29,8 @@ Layout QC gate: before final rendering, run style intake, layout audit, topic-ba
 
 Additive feature rule: `style_contract`, `persistent_topic_banner`, `layout_preflight`, and `probe_render` are additive quality gates. They must not replace script analysis, B-roll sourcing, AE/HyperFrame candidate planning, visual ratio planning, source uniqueness audit, or source playback audit. If these style gates conflict with asset gates, asset gates remain mandatory.
 
+Gate remediation rule: gates are mandatory quality controls, not first-response excuses to stop. When any gate fails, run the built-in remediation loop in `references/workflow.md` before writing `output/FINAL_BLOCKED.md`: align subtitles from audio when timing is draft-only, source more lawful B-roll when assets are missing, replace repeated or replayed sources, revise cue splitting/layout when subtitles fail QC, and rerun the failed audits. Block final only after feasible remediation paths are exhausted or a required user permission/credential/asset is truly unavailable.
+
 ## Start Here
 
 1. Inspect the project folder for script, oral video, BGM, existing assets, example screenshots, previous outputs, and user constraints.
@@ -41,13 +43,15 @@ Additive feature rule: `style_contract`, `persistent_topic_banner`, `layout_pref
 8. If B-roll is missing or insufficient, run online asset sourcing in the order defined by `references/asset-sourcing.md` before rendering.
 9. Generate `shot_plan.json` and `visual_strategy.csv` using selected assets and accepted candidate overlays.
 10. Compute `visual_ratio_audit.json` from selected assets and planned durations.
-11. Only after the asset gate, visual ratio gate, source uniqueness audit, and source playback audit pass, run layout preflight and probe render.
-12. Render final MP4 and the editable package only after all old gates and new style/layout gates pass.
+11. If any asset, timing, visual ratio, uniqueness, playback, HyperFrame, layout, or probe gate fails, run the remediation loop before declaring final blocked.
+12. Only after the asset gate, visual ratio gate, source uniqueness audit, and source playback audit pass, run layout preflight and probe render.
+13. Render final MP4 and the editable package only after all old gates and new style/layout gates pass.
 
 ## Core Rules
 
 - Treat the script as the source of truth. Read the full script before writing a shotlist.
 - For an oral-video edit, create a subtitle cue timeline before the final edit timeline. Final renders require audio-derived timing: ASR word timestamps, phrase timestamps, or forced alignment between the supplied script and oral audio. Script-length proportional timing is allowed only for rough planning previews and must not be used for a final MP4 unless the user explicitly accepts a non-synced draft. Save the result as `work/plan/subtitle_cues.json`.
+- If subtitle timing is missing or draft-only, do not stop immediately. Try remediation first: extract the oral audio with ffmpeg, use any available local ASR/Whisper/faster-whisper/whisper.cpp/mlx-whisper/transcript tool, align transcript phrases back to the supplied script, or consume user/manual phrase timestamps if present. If all timing paths fail, create a draft preview and an alignment dependency report instead of a final MP4.
 - Subtitle segmentation must be meaning-aware. Split on sentence, clause, breath, pause, contrast, and spoken phrase boundaries; each cue should read as a complete spoken phrase or meaningful clause. Do not break a fixed number of characters in the middle of a phrase, named entity, number, technical term, or cause-effect relation just to satisfy a length target.
 - Keep subtitles readable without making character count a hard cutter. Prefer one line when a complete phrase is short; allow two balanced lines when a complete spoken phrase would be damaged by over-splitting. Use length targets as soft readability checks, not as the segmentation algorithm.
 - Keep most cue durations around the actual spoken phrase timing. A cue starts at the first spoken word and ends after the last spoken word, with small padding only when needed for readability. Avoid any subtitle cue staying on screen for several visual cuts.
@@ -94,11 +98,12 @@ Additive feature rule: `style_contract`, `persistent_topic_banner`, `layout_pref
 - For every shot marked `broll_needed: true`, local asset checks must include `assets/raw/video`, `assets/selected/by_shot`, `assets/selected/by_theme`, `assets/raw/screen_recording`, `assets/metadata/asset_manifest.json`, and `assets_library/asset_index.json`. If these do not contain a suitable asset, generate shot-level search keywords and source online before rendering.
 - Video sourcing is first-class. Check every configured/known source for downloadable video before using lawful still images or authorized screen recordings. Generated graphics and placeholder cards are not sourcing fallbacks.
 - If a provider search/download needs an API key and neither the environment nor project `.env` provides it, create or update a project-root `.env.example` with placeholder variable names, tell the user to create `.env`, and pause before running that API source. If the user says they do not have the key or explicitly asks to continue, record that provider as `needs_api_key` and continue with non-API public/direct-download/official/authorized-recording sources.
+- Missing an API key blocks only that API provider, not the entire sourcing stage. Continue with non-API public pages, visible direct downloads, official/media-kit sources, Wikimedia/Openverse-style sources, and authorized screen-recording plans unless that missing-key provider is the only lawful remaining path.
 - Search and download video素材 by shot-level related keywords, not only broad topic terms. During script-to-visual planning, map each script fragment to the closest visible footage keywords and select the most relevant clips for the edit; when there are more good clips than runtime, discard weaker surplus rather than forcing every downloaded asset into the video.
 - Do not treat still images, generated diagrams, crops, masks, HyperFrames, generated bitmap assets, or text cards as substitutes for missing video B-roll. Still images may be used only when the sourcing workflow found no suitable video but did find a lawful, relevant image; generated assets require explicit user approval and must not satisfy the B-roll count.
 - Do not continue to final render by substituting missing B-roll with HyperFrames, generated diagrams, generated bitmap assets, text-only cards, placeholder motion, repeated old B-roll, looped short clips, or still-image stacks.
-- If the sourcing workflow cannot find enough lawful, relevant video/image/screen-recording assets for the planned B-roll coverage, stop. Produce `asset_search_plan.json`, `video_source_audit.csv`, and a concise shortage report; do not render a final video from generated substitutes.
-- If subtitle timing cannot be derived from audio timestamps or reliable forced alignment, stop before final rendering. Produce the draft cue plan and a concise alignment dependency report; do not render a final MP4 from script-length proportional timing unless the user explicitly requests a non-synced draft.
+- If the sourcing workflow cannot find enough lawful, relevant video/image/screen-recording assets for the planned B-roll coverage after all source-order remediation has been attempted, stop. Produce `asset_search_plan.json`, `video_source_audit.csv`, `remediation_log.json`, and a concise shortage report; do not render a final video from generated substitutes.
+- If subtitle timing cannot be derived from audio timestamps, reliable forced alignment, or manual phrase timestamps after the alignment remediation loop, stop before final rendering. Produce the draft cue plan, `remediation_log.json`, and a concise alignment dependency report; do not render a final MP4 from script-length proportional timing unless the user explicitly requests a non-synced draft.
 - Do not layer multiple unrelated still images in stacked depth layers, and do not place still images on top of video footage as faux B-roll. If a still image is the most relevant asset, use it as a single full-screen shot with restrained editing treatment such as a slow push, pan, crop, blur-to-focus, match cut, or brief photo montage; record the image fallback reason.
 - Search related news and official event materials early. Download only lawful, permitted, non-DRM video assets; otherwise mark the source as `reference_only` or `cannot_download` and use a permissible replacement.
 - Screen recording means recording a playable public/authorized video or product/report interface when no direct download/API/media-kit route is available. It does not mean scrolling a webpage just to create motion. Do not use website-scroll screen recordings as a replacement for missing B-roll unless the page interaction itself is the story.
@@ -162,7 +167,7 @@ shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,sourc
 5. **Asset plan**
    - Read `references/asset-sourcing.md`.
    - Use local assets first. If local assets are missing or insufficient, search online in the required acquisition order: related news/official event sources, official media kits/public datasets, downloadable stock/open video sources, permissible image sources, then authorized screen recordings.
-   - When a required provider API key is missing, create/update `.env.example`, ask the user to add `.env`, and stop before using that API provider unless the user already said they have no key or asked to continue. After that explicit user direction, skip only the missing-key API attempt and keep searching other lawful sources.
+   - When a provider API key is missing, create/update `.env.example`, ask the user to add `.env`, and stop only that API provider unless the user already said they have no key or asked to continue. Keep searching other lawful non-API/direct/official/authorized-recording sources; do not block the whole asset stage because Pexels/Pixabay or another API provider is unavailable.
    - Search video first for every B-roll shot. Prefer clips whose visible content directly matches the script fragment; when enough better clips exist, drop loosely related clips from the edit even if downloaded.
    - For every listed provider/source, check whether a downloadable video source is available and record the result before using image fallback. If no lawful downloadable or recordable asset is found for required B-roll coverage, stop at this stage.
    - For every shot, output `primary_terms`, `fallback_terms`, `screen_recording_targets`, `data_visual_needed`, and selected/needed assets.
@@ -181,6 +186,7 @@ shot_id,source_segments,start,end,duration,visual_mode,asset_key,source_in,sourc
    - If the layout audit fails, revise subtitle splitting, banner compact mode, banner height, font size within allowed range, or safe-area layout, then rerun the preview/audit loop.
    - Run `scripts/render_probe.py <project_dir>` and extract probe frames before full render. The probe must cover at least one talking-head shot, one B-roll shot, one topic-banner frame, and one long-subtitle frame when those are present.
    - Only render `final.mp4` after `layout_qc_report.json.status = "passed"`, topic/subtitle audits pass, the probe decodes, and probe frames are available.
+   - If any final gate still fails after remediation, write `output/FINAL_BLOCKED.md` only with the attempted fixes, remaining blockers, and exact user-provided credential/permission/asset/timestamp needed.
    - Export a final MP4 and an editable package.
 
 7. **Editable package**
@@ -221,6 +227,7 @@ When the user dislikes a card, replace only that PNG using `00_edit_manifest.csv
 - Subtitle files exist separately from final MP4.
 - Shotlist and manifest exist.
 - `style_contract.json`, `video_topic.json`, and `style_intake_report.json` exist.
+- `remediation_log.json` exists when any gate failed during production, and final blocking cites attempted fixes rather than only listing missing inputs.
 - The render script, ASS subtitles, ordinary overlays, Remotion overlays, and HyperFrame overlays read `style_contract.json` rather than hardcoding subtitle/title style.
 - Topic banner audit exists and passes, or records `user_disabled` because the user explicitly turned the banner off.
 - Subtitle style audit exists and confirms normal subtitles are at least `68px`, at most two lines, and not shrunk to fit long text.

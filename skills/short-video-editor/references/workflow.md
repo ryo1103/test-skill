@@ -44,6 +44,7 @@ project/
 │   │   ├── subtitle_style_audit.json
 │   │   ├── source_uniqueness_audit.json
 │   │   ├── source_playback_audit.json
+│   │   ├── remediation_log.json
 │   │   ├── shotlist_render.csv
 │   │   └── edit_manifest.csv
 │   └── render_*.py
@@ -171,7 +172,7 @@ Create `work/plan/subtitle_cues.json` before final rendering:
 Rules:
 
 - Final MP4 subtitle timing must come from the audio: ASR word timestamps, phrase timestamps, or forced alignment between the supplied script and oral audio. If no reliable audio alignment is available, stop before final render and report the missing transcription/alignment dependency. A script-length proportional timeline may be saved only as a rough planning preview and must be marked `script_length_proportional_draft_only`.
-- If `alignment_method = script_length_proportional_draft_only`, do not render `output/final.mp4`. Render only `output/draft_preview.mp4`, mark final delivery blocked, and explain that audio-derived cue timing is required.
+- If `alignment_method = script_length_proportional_draft_only`, do not render `output/final.mp4`. First run subtitle alignment remediation: extract oral audio with ffmpeg, look for available local ASR/Whisper/faster-whisper/whisper.cpp/mlx-whisper or existing transcript tooling, align transcript phrase timings back to the supplied script, or consume manual phrase timestamps if present. Only when those paths fail should you render `output/draft_preview.mp4`, mark final delivery blocked, and explain the missing audio-derived cue timing.
 - Every final cue must have audio-derived `start_sec` and `end_sec` from ASR, forced alignment, phrase timestamps, or manual phrase timestamps. Low-confidence/proportional/missing cue timing fails final render.
 - Segment subtitles by meaning first. Start with sentence and clause boundaries, then refine by ASR pauses/breaths, contrast pivots, emphasis, and natural spoken phrase boundaries. Each cue must be a complete spoken phrase or meaningful clause; do not cut midway through a subject-predicate-object phrase, number, named entity, technical term, comparison, or cause-effect unit.
 - Burned subtitles must be short spoken fragments, not full written sentences. For Chinese captions, target `6-14` Chinese characters per cue and hard-stop above `18` characters except named entities.
@@ -188,7 +189,7 @@ After keyword extraction, run the asset gate before rendering or generating moti
 1. Check local project assets for every B-roll/screen-recording/image-motion shot.
 2. If local assets are missing or insufficient, search online and attempt lawful download or authorized recording using the source order in `asset-sourcing.md`.
 3. Record every query, provider, result, blocked reason, selected asset, and local path.
-4. If an API provider needs a key that is not in the environment or project `.env`, create/update `.env.example`, ask the user to create `.env`, and pause before using that API. If the user says they have no key or asks to continue, mark that provider as `needs_api_key` and continue with other lawful non-API/direct/official/recording sources.
+4. If an API provider needs a key that is not in the environment or project `.env`, create/update `.env.example`, ask the user to create `.env`, and pause only that API provider. Continue with other lawful non-API/direct/official/recording sources unless that provider is the only remaining lawful path. If the user says they have no key or asks to continue, mark that provider as `needs_api_key` and keep sourcing elsewhere.
 5. If enough relevant assets cannot be acquired, stop at the sourcing stage. Do not generate HyperFrames, generated bitmap assets, generated diagrams, placeholder cards, or text-only motion as replacements for missing B-roll.
 
 For every shot marked `broll_needed: true`, local checks must include:
@@ -270,7 +271,7 @@ Save `work/plan/visual_ratio_audit.json` before rendering:
 }
 ```
 
-If the ratio audit fails, revise the shot plan before rendering: add or source more B-roll, shorten digital-human spans, and downgrade unnecessary HyperFrames. If more B-roll cannot be sourced after the required search/download process, stop instead of rendering.
+If the ratio audit fails, revise the shot plan before rendering: add or source more B-roll, shorten digital-human spans, and downgrade unnecessary HyperFrames. If more B-roll cannot be sourced after the required search/download and remediation process, stop instead of rendering.
 
 ## Related-News Scan
 
@@ -539,7 +540,7 @@ Use this priority:
 
 Generated bitmap assets are not part of the acquisition ladder for missing B-roll. Use generated assets only with explicit user approval for covers, optional backgrounds, or non-B-roll design elements; never count them toward the B-roll/source target.
 
-For API-backed providers in this priority list, missing keys require a pause on first encounter: generate `.env.example`, ask the user to create `.env`, and proceed without that API only after the user confirms they have no key or asks to continue.
+For API-backed providers in this priority list, missing keys require a pause for that provider on first encounter: generate `.env.example`, ask the user to create `.env`, and proceed without that API only after the user confirms they have no key or asks to continue. Do not stop the whole sourcing stage while non-API, direct, official, open-license, or authorized recording paths remain.
 
 Video-first rules:
 
@@ -659,6 +660,71 @@ Probe render gate:
 - Extract probe frames to `output/qc/probe_frames/`.
 - If probe decoding fails, subtitles are too small, subtitles are clipped/cropped by player controls, text is too long horizontally, captions occupy more than two balanced lines, the banner is missing, text overflows, elements overlap, or representative frames show unsafe layout, stop before full render.
 
+## Gate Remediation Loop
+
+Run this loop whenever a gate fails. The goal is to fix the plan and rerun the failed audit, not to write `FINAL_BLOCKED.md` immediately.
+
+Create or update `work/plan/remediation_log.json`:
+
+```json
+{
+  "status": "not_run | in_progress | exhausted | resolved",
+  "attempts": [
+    {
+      "gate": "subtitle_alignment | asset_sourcing | visual_ratio | source_uniqueness | source_playback | hyperframe | layout_qc | probe_render",
+      "failure_code": "",
+      "action": "",
+      "result": "resolved | still_failing | needs_user_permission | needs_user_credential | not_available",
+      "files_changed": [],
+      "next_action": ""
+    }
+  ],
+  "unresolved_blockers": [],
+  "final_block_allowed": false
+}
+```
+
+Remediation paths:
+
+1. **Subtitle alignment failure**
+   - Extract audio from the oral video with ffmpeg.
+   - Check for usable local ASR or alignment tools already installed: Whisper CLI, faster-whisper, whisper.cpp, mlx-whisper, existing transcript files, SRT/VTT, or a project-specific transcript helper.
+   - If ASR transcript exists, align spoken phrases back to the supplied script and rebuild `subtitle_cues.json` with audio-derived start/end, semantic splits, and sync confidence.
+   - If ASR is unavailable but manual phrase timestamps/SRT exist, convert them into `subtitle_cues.json`.
+   - If no timing path exists, keep only `draft_preview.mp4`, write an alignment dependency report, and set `final_block_allowed = true`.
+
+2. **Asset sourcing failure**
+   - Recheck local asset folders and `assets_library/asset_index.json`.
+   - Expand shot-level keywords from direct visual terms to fallback visual proxies while staying related to the spoken line.
+   - Continue the source order: related news/official event pages, official media kits, public-domain archives, downloadable/open video providers, lawful image sources, then authorized screen-recording plans.
+   - Missing Pexels/Pixabay or other API keys block only those API providers. Record `needs_api_key`, keep searching non-API/direct/official/open/recording paths, and ask the user only when that provider or a permissioned recording is the only remaining lawful route.
+   - If enough unique assets still cannot be acquired, write the shortage report and set `final_block_allowed = true`.
+
+3. **Visual ratio failure**
+   - Source more unique B-roll first.
+   - Shorten overlong full-screen digital-human spans and redistribute coverage to selected B-roll.
+   - Downgrade weak HyperFrame candidates to B-roll with light overlays only when they do not meet required-trigger logic.
+   - If the B-roll target still cannot be met without repeats or generated substitutes, block final with the sourcing shortage.
+
+4. **Source uniqueness/playback failure**
+   - Replace repeated source keys with unused assets.
+   - If a source was replayed or restarted, choose one continuous non-looped trim or replace the later occurrence.
+   - Shorten the visual coverage instead of looping footage.
+   - Source more material if the cue-level timeline needs more events than available unique sources.
+
+5. **HyperFrame/AE failure**
+   - If a required-trigger shot lacks a B-roll base, source/select the base asset first.
+   - If lint/render/snapshot QA fails, fix the HyperFrame and rerun snapshots.
+   - Downgrade only after writing `downgrade_reason`, `why_simple_broll_is_enough`, and a user-visible warning.
+
+6. **Layout/subtitle/topic/probe failure**
+   - Split overlong captions on semantic/audio boundaries, remove non-semantic punctuation, and keep font size at or above the minimum.
+   - Adjust topic banner compact mode, banner height, or safe-area position; do not remove the banner unless the user explicitly disables it.
+   - Regenerate contact sheet/probe frames and rerun `audit_layout_plan.py`.
+   - If probe decode fails, fix the render script or codec settings and rerun the probe before final.
+
+Only write `output/FINAL_BLOCKED.md` after this loop is exhausted. The blocked report must include `remediation_log.json`, the audits that still fail, and the exact user action needed, such as providing an API key, authorizing a screen recording, uploading B-roll, or supplying phrase timestamps.
+
 ## Workflow Integration Gate
 
 Before final render, confirm all old and new gates passed:
@@ -680,7 +746,7 @@ Before final render, confirm all old and new gates passed:
 15. `subtitle_style_audit.json` passes.
 16. Probe render exists and decodes.
 
-If any item fails, do not render final MP4. Style contracts, topic banners, layout preflight, and probe render are additive quality gates; they cannot replace asset sourcing, visual strategy planning, visual ratio audit, source uniqueness audit, source playback audit, or HyperFrame polish guard.
+If any item fails, run the Gate Remediation Loop and rerun the failed audit. Do not render final MP4 until the failed item is resolved. Style contracts, topic banners, layout preflight, and probe render are additive quality gates; they cannot replace asset sourcing, visual strategy planning, visual ratio audit, source uniqueness audit, source playback audit, or HyperFrame polish guard.
 
 ## Rendering Guidance
 
@@ -695,7 +761,7 @@ Also do not start final rendering until the Workflow Integration Gate passes. Th
 Render from audio-aligned semantic cue-level timing:
 
 1. Load `subtitle_cues.json`.
-2. Fail immediately if `alignment_method` is proportional/draft-only and the requested output is a final MP4.
+2. If `alignment_method` is proportional/draft-only and the requested output is a final MP4, run subtitle alignment remediation before failing.
 3. Validate that every cue has an audio-derived start/end, a semantic split reason, and no sync/meaning failures.
 4. Assign each semantic cue or cue pair to one visual event.
 5. Choose a unique selected B-roll source for every B-roll visual event.
@@ -704,7 +770,7 @@ Render from audio-aligned semantic cue-level timing:
 8. Generate `.srt` and `.ass` from the same cue list used by the visual timeline.
 9. Run `source_uniqueness_audit.json` and `source_playback_audit.json`.
 10. Generate `style_preview_contact_sheet.png`, run `audit_layout_plan.py`, render `probe_render.mp4`, and extract probe frames.
-11. Fail the render if cues are not audio-aligned, if the cue plan is `script_length_proportional_draft_only`, if any cue has low-confidence/proportional timing, if a cue breaks semantic phrasing unnaturally, if subtitle text repeats across multiple visual cuts, if burned subtitle cues exceed the short-cue target, if subtitles are below `68px`, if any subtitle has more than two lines, if the required topic banner is missing/duplicative/overlapping, if any B-roll source is reused, or if any source playback loop/restart/rewind is found outside approved still fallback.
+11. Fail the final render only after remediation is exhausted if cues are not audio-aligned, if the cue plan remains `script_length_proportional_draft_only`, if any cue has low-confidence/proportional timing, if a cue breaks semantic phrasing unnaturally, if subtitle text repeats across multiple visual cuts, if burned subtitle cues exceed the short-cue target, if subtitles are below `68px`, if any subtitle has more than two lines, if the required topic banner is missing/duplicative/overlapping, if any B-roll source is reused, or if any source playback loop/restart/rewind is found outside approved still fallback.
 
 Common render outputs:
 
@@ -771,9 +837,11 @@ When the user says `帮我剪这个视频`, `用这个 skill 做成短视频`, o
     - subtitle style audit
 20. Render `probe_render.mp4`.
 21. Extract probe frames and inspect layout.
-22. Only if all gates pass, render `final.mp4`.
-23. Extract final QC frames.
-24. Export editable package.
+22. If any gate fails, run the Gate Remediation Loop, update `remediation_log.json`, and rerun the failed audit.
+23. Only if all gates pass after remediation, render `final.mp4`.
+24. If remediation is exhausted, write `output/FINAL_BLOCKED.md` with attempted fixes and the exact missing user credential/permission/asset/timestamp.
+25. Extract final QC frames.
+26. Export editable package.
 
 ## Editable Package
 
@@ -866,7 +934,7 @@ Case C: project has B-roll, but not enough to support the `50%-70%` B-roll targe
 Expected:
 
 - `visual_ratio_audit.json` fails.
-- Codex continues sourcing or shortens non-essential durations.
+- Codex continues sourcing or shortens non-essential durations, records attempts in `remediation_log.json`, and reruns the audit.
 - Codex does not use repeated assets, looped assets, generated cards, or placeholder motion to pad runtime.
 
 Case D: added style features are enabled.
@@ -881,6 +949,15 @@ Case E: final render.
 Expected:
 
 - Final render starts only after all pass: asset gate, visual strategy / AE candidate gate, visual ratio audit, source uniqueness audit, source playback audit, HyperFrame polish guard, layout QC, and probe render.
+
+Case F: a gate fails during production.
+
+Expected:
+
+- Codex runs the Gate Remediation Loop before blocking.
+- Missing ASR/timing triggers audio extraction and local ASR/alignment checks before draft-only blocking.
+- Missing B-roll triggers more sourcing and non-API/official/authorized recording paths before shortage blocking.
+- `output/FINAL_BLOCKED.md`, when present, cites `remediation_log.json` and the remaining user action needed.
 
 ## User-Facing Closeout
 

@@ -20,6 +20,7 @@ Final rendering also requires:
 work/plan/layout_qc_report.json
 work/plan/topic_banner_audit.json
 work/plan/subtitle_style_audit.json
+work/plan/remediation_log.json              # required when any final gate failed before passing
 output/qc/style_preview_contact_sheet.png
 output/qc/probe_render.mp4
 output/qc/probe_frames/
@@ -234,7 +235,7 @@ The persistent topic banner is a topic anchor / visual thesis. It is not a secon
 - Remove visible punctuation such as `，。；：` unless semantically required.
 - Long subtitles must be semantically split; do not shrink below `font_size_min_px` to force long text into one cue.
 - Each cue must remain a complete spoken phrase or meaningful clause and must use audio-derived timing for final renders.
-- If `subtitle_cues.alignment_method = script_length_proportional_draft_only`, do not render `output/final.mp4`; render only `output/draft_preview.mp4` and mark final blocked.
+- If `subtitle_cues.alignment_method = script_length_proportional_draft_only`, do not render `output/final.mp4`. First run subtitle alignment remediation: extract oral audio, check available ASR/Whisper/forced-alignment/manual timestamp inputs, rebuild cues, and rerun audits. Render only `output/draft_preview.mp4` and mark final blocked after those timing paths fail.
 - Every final cue must have audio-derived timing from ASR, forced alignment, or manual phrase timestamps. Low-confidence/proportional cues fail final render.
 
 ## Required Gates Before Final
@@ -250,3 +251,12 @@ Final render must not start until all are true:
 - `output/qc/probe_render.mp4` exists, decodes, and representative probe frames exist.
 
 Fail the final render if the required topic banner is missing, subtitles are below minimum size, subtitle timing is draft/proportional/low-confidence, subtitles exceed two lines or the hard cue length, visible punctuation remains without a semantic flag, title/subtitle text is clipped, banner and subtitle boxes overlap, HyperFrame/design cards occupy the subtitle zone, or preview/probe frames show unsafe layout.
+
+Audit failures must trigger remediation before final blocking:
+
+- Draft or missing timing: run audio extraction and ASR/forced/manual phrase timestamp alignment.
+- Long or three-line subtitles: split on semantic/audio boundaries and rerun preview/audit.
+- Banner missing/overlapping/duplicative: regenerate `video_topic.json` or adjust compact/safe-area layout.
+- Probe/frame layout issues: revise style contract or render layout, regenerate contact sheet/probe, and audit again.
+
+Write `output/FINAL_BLOCKED.md` only after these remediation attempts are exhausted, and cite `work/plan/remediation_log.json`.

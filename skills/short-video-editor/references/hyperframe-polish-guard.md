@@ -244,6 +244,13 @@ Failure conditions:
 - Fixed-character slicing that breaks a phrase, number, named entity, technical term, comparison, or cause-effect unit.
 - Subtitle text clipped or outside the safe layout.
 
+Remediation before blocking:
+
+- Rebuild subtitle cues from audio-derived timings when the cue plan is draft/proportional.
+- Split long cues on semantic/audio phrase boundaries, not fixed character counts.
+- Remove non-semantic punctuation from burned captions.
+- Keep font size at or above the configured minimum and solve fit by splitting or repositioning.
+
 ### `topic_banner_guard`
 
 Trigger when `persistent_topic_banner.enabled = true` or when the user asks that any frame communicate the video topic.
@@ -272,6 +279,13 @@ Failure conditions:
 
 If the user explicitly disables the topic banner, record `status: user_disabled` in `work/plan/topic_banner_audit.json`; do not fail for missing banner.
 
+Remediation before blocking:
+
+- Regenerate `video_topic.json` from the script when the banner is missing.
+- Rewrite the banner as a whole-video thesis when it duplicates current subtitles.
+- Switch to compact talking-head position or adjust the safe-area box when it overlaps a face, card, or subtitle.
+- Ask the user only when the topic is genuinely ambiguous or the user must approve disabling the banner.
+
 ### `layout_preflight_guard`
 
 Trigger before final render and before exporting an editable package.
@@ -292,7 +306,7 @@ Preview frames must include representative cases when present:
 - long subtitle;
 - ending/conclusion.
 
-If preflight fails, revise subtitle splitting, banner compact mode, banner size, safe-area placement, or card layout and regenerate the contact sheet. Do not proceed directly to full render.
+If preflight fails, revise subtitle splitting, banner compact mode, banner size, safe-area placement, or card layout and regenerate the contact sheet. Record the attempt in `work/plan/remediation_log.json`. Do not proceed directly to full render.
 
 ### `probe_render_guard`
 
@@ -311,7 +325,7 @@ Rules:
 - Decode-check the probe with ffmpeg.
 - Extract frames and inspect for tiny subtitles, missing banner, overflow, overlap, clipped text, wrong aspect ratio, or misplaced animation.
 
-If probe decoding or layout inspection fails, stop before full render.
+If probe decoding or layout inspection fails, fix the render script, codec settings, subtitle split, banner layout, or overlay/card placement and rerun the probe. Stop before full render only after remediation is exhausted.
 
 ## Auto-Fix Loop
 
@@ -327,6 +341,8 @@ If a snapshot shows a problem, revise and re-render automatically when feasible:
 - Messy PPT/random webpage look: simplify to one main idea, one main visual structure, and restrained motion.
 
 Only mark a HyperFrame shot as `complete` when lint/render/snapshots pass visual QA.
+
+For ordinary edit timeline failures, use the same auto-fix posture: revise, regenerate preview/probe, and rerun audits before writing `FINAL_BLOCKED.md`. Hard gates protect final quality, but they should surface a repair path first.
 
 ## Completion Record
 
@@ -361,6 +377,7 @@ work/plan/subtitle_style_audit.json
 work/plan/topic_banner_audit.json
 work/plan/layout_qc_report.json
 work/plan/probe_render_report.json
+work/plan/remediation_log.json
 output/qc/style_preview_contact_sheet.png
 output/qc/probe_render.mp4
 output/qc/probe_frames/
