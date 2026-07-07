@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
 import re
@@ -110,6 +111,26 @@ def make_contact_sheet(ffmpeg: str, out_dir: Path, contact_sheet: Path, columns:
         raise RuntimeError(f"ffmpeg failed creating contact sheet: {result.stderr.strip()}")
 
 
+def write_inspection_report(report_path: Path, frames: list[Path], contact_sheet: Path | None) -> None:
+    payload = {
+        "status": "not_inspected",
+        "frames": [str(path) for path in frames],
+        "contact_sheet": str(contact_sheet) if contact_sheet else "",
+        "checks_required": [
+            "subtitle_size",
+            "subtitle_not_clipped",
+            "topic_banner_visible",
+            "topic_banner_not_covering_face",
+            "no_subtitle_banner_overlap",
+            "hyperframe_not_misaligned",
+            "no_blank_frames",
+        ],
+        "inspection_required": True,
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Extract representative QC frames from an MP4.")
     parser.add_argument("video", help="Input MP4/video path")
@@ -117,6 +138,7 @@ def main() -> int:
     parser.add_argument("--every-sec", type=float, default=5.0, help="Sample every N seconds when --timestamps is not set")
     parser.add_argument("--timestamps", help="Comma-separated timestamps in seconds, e.g. 0,3,8")
     parser.add_argument("--contact-sheet", help="Optional contact sheet PNG path")
+    parser.add_argument("--report", help="Optional visual inspection report JSON path")
     parser.add_argument("--columns", type=int, default=4, help="Contact sheet columns")
     parser.add_argument("--thumb-width", type=int, default=270, help="Contact sheet thumbnail width")
     args = parser.parse_args()
@@ -137,15 +159,24 @@ def main() -> int:
         duration = probe_duration(ffmpeg, video)
         timestamps = timestamps_from_every(duration, args.every_sec)
 
+    frames: list[Path] = []
     for index, timestamp in enumerate(timestamps):
-        extract_frame(ffmpeg, video, timestamp, out_dir / f"frame_{index:03d}.png")
+        frame_path = out_dir / f"frame_{index:03d}.png"
+        extract_frame(ffmpeg, video, timestamp, frame_path)
+        frames.append(frame_path)
 
+    contact_path = Path(args.contact_sheet).expanduser().resolve() if args.contact_sheet else None
     if args.contact_sheet:
-        make_contact_sheet(ffmpeg, out_dir, Path(args.contact_sheet).expanduser().resolve(), args.columns, args.thumb_width)
+        make_contact_sheet(ffmpeg, out_dir, contact_path, args.columns, args.thumb_width)
+
+    if args.report:
+        write_inspection_report(Path(args.report).expanduser().resolve(), frames, contact_path)
 
     print(f"Extracted {len(timestamps)} frame(s) to {out_dir}")
     if args.contact_sheet:
-        print(Path(args.contact_sheet).expanduser().resolve())
+        print(contact_path)
+    if args.report:
+        print(Path(args.report).expanduser().resolve())
     return 0
 
 

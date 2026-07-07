@@ -1,0 +1,26 @@
+{
+  "contract": "short_video_final_video",
+  "production_mode_default": true,
+  "requires": {
+    "production_acceptance_status": "PASS",
+    "can_claim_complete": true,
+    "final_mp4": "output/final.mp4",
+    "final_report": "output/FINAL_REPORT.md"
+  },
+  "timing_tolerance_sec": 0.25,
+  "forbidden_evidence_in_production": [
+    "dummy_ffprobe_metadata",
+    "request_json",
+    "queued_provider_rows",
+    "screen_recording_plan_only",
+    "generated_animation_request",
+    "static_image_as_motion",
+    "hyperframe_request_only",
+    "drawtext_only"
+  ],
+  "fixture_policy": {
+    "allow_only_with_cli_flag": "--allow-fixtures",
+    "allow_env": "SVIDEO_ALLOW_FIXTURES=1",
+    "failure_code": "fixture_probe_not_allowed_in_production"
+  }
+}

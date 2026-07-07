@@ -189,6 +189,25 @@ def select_probe_rows(rows: list[dict], project_dir: Path) -> list[tuple[dict, P
     return trimmed
 
 
+def required_coverage(rows: list[dict]) -> dict[str, bool]:
+    labels = [classify_row(row) for row in rows]
+    return {
+        "talking_head": any("talking_head" in item for item in labels),
+        "broll": any("broll" in item for item in labels),
+        "topic_banner": any("topic_banner" in item for item in labels),
+        "long_subtitle": any("long_subtitle" in item for item in labels),
+    }
+
+
+def actual_coverage(selected: list[tuple[dict, Path, set[str]]]) -> dict[str, bool]:
+    return {
+        "talking_head": any("talking_head" in labels for _, _, labels in selected),
+        "broll": any("broll" in labels for _, _, labels in selected),
+        "topic_banner": any("topic_banner" in labels for _, _, labels in selected),
+        "long_subtitle": any("long_subtitle" in labels for _, _, labels in selected),
+    }
+
+
 def selected_banner(topic: dict) -> tuple[str, str]:
     selected = topic.get("selected_banner", {}) if isinstance(topic, dict) else {}
     return str(selected.get("main", "") or ""), str(selected.get("sub", "") or "")
@@ -225,8 +244,8 @@ def build_filter(style: dict, topic: dict, row: dict) -> str:
         w = int(position.get("width", 740))
         h = int(position.get("height", 230))
         padding = int(banner.get("padding_px", 28))
-        main_size = int(banner.get("main_font_size_px", 82))
-        sub_size = int(banner.get("sub_font_size_px", 74))
+        main_size = int(banner.get("main_font_size_px", 84))
+        sub_size = int(banner.get("sub_font_size_px", 76))
         opacity = banner_background_opacity(banner)
         filters.append(f"drawbox=x={x}:y={y}:w={w}:h={h}:color=black@{opacity:.2f}:t=fill")
         if main:
@@ -246,7 +265,7 @@ def build_filter(style: dict, topic: dict, row: dict) -> str:
 
     script = clean_text(row.get("script", ""), 30)
     if script:
-        font_size = int(subtitle.get("font_size_px", 80))
+        font_size = int(subtitle.get("font_size_px", 82))
         bottom_margin = int(subtitle.get("bottom_margin_px", 240))
         outline = int(subtitle.get("outline_px", 6))
         y_expr = f"h-{bottom_margin}-{font_size}"
@@ -349,16 +368,30 @@ def extract_probe_frames(project_dir: Path, video: Path) -> None:
         "2",
         "--contact-sheet",
         str(contact),
+        "--report",
+        str(project_dir / "work" / "plan" / "visual_inspection_report.json"),
     ]
     result = run(cmd)
     if result.returncode != 0:
         raise RuntimeError(f"Probe frame extraction failed: {result.stderr.strip()}")
 
 
-def write_probe_report(project_dir: Path, selected: list[tuple[dict, Path, set[str]]], output: Path) -> None:
+def write_probe_report(
+    project_dir: Path,
+    selected: list[tuple[dict, Path, set[str]]],
+    output: Path,
+    manifest: list[dict],
+    *,
+    status: str,
+    decode_status: str,
+    failures: list[dict],
+) -> None:
+    required = required_coverage(manifest)
+    coverage = actual_coverage(selected)
+    missing = [key for key, required_value in required.items() if required_value and not coverage.get(key)]
     report = {
-        "status": "passed",
-        "probe_render": str(output),
+        "status": "failed" if failures or missing or decode_status != "passed" else status,
+        "probe_render": str(output) if output else "",
         "selected_segments": [
             {
                 "shot_id": row.get("shot_id", ""),
@@ -368,12 +401,20 @@ def write_probe_report(project_dir: Path, selected: list[tuple[dict, Path, set[s
             }
             for row, source, labels in selected
         ],
-        "coverage": {
-            "talking_head": any("talking_head" in labels for _, _, labels in selected),
-            "broll": any("broll" in labels for _, _, labels in selected),
-            "topic_banner": any("topic_banner" in labels for _, _, labels in selected),
-            "long_subtitle": any("long_subtitle" in labels for _, _, labels in selected),
-        },
+        "coverage": coverage,
+        "required_coverage": required,
+        "missing_required_coverage": missing,
+        "decode_status": decode_status,
+        "failures": failures
+        + [
+            {
+                "code": "missing_required_coverage",
+                "stage": "probe_render",
+                "message": f"Probe did not cover required manifest scene type: {key}",
+                "required_action": "Select or make usable source media for this scene type and rerun render_probe.py.",
+            }
+            for key in missing
+        ],
     }
     (project_dir / "work" / "plan").mkdir(parents=True, exist_ok=True)
     (project_dir / "work" / "plan" / "probe_render_report.json").write_text(
@@ -398,6 +439,22 @@ def main() -> int:
     manifest = read_manifest(plan_dir / "edit_manifest.csv")
     selected = select_probe_rows(manifest, project_dir)
     if not selected:
+        write_probe_report(
+            project_dir,
+            [],
+            output_dir / "probe_render.mp4",
+            manifest,
+            status="failed",
+            decode_status="failed",
+            failures=[
+                {
+                    "code": "no_usable_source_media",
+                    "stage": "probe_render",
+                    "message": "No usable source media found in edit_manifest.csv for probe render.",
+                    "required_action": "Fill edit_manifest.csv with real source_segments or asset_key paths that exist on disk.",
+                }
+            ],
+        )
         print("No usable source media found in edit_manifest.csv for probe render.", file=sys.stderr)
         return 1
 
@@ -418,10 +475,31 @@ def main() -> int:
         concat_segments(ffmpeg, segments, output)
         decode_check(ffmpeg, output)
         extract_probe_frames(project_dir, output)
-        write_probe_report(project_dir, selected, output)
+        write_probe_report(project_dir, selected, output, manifest, status="passed", decode_status="passed", failures=[])
+        report = read_json(plan_dir / "probe_render_report.json", {})
+        if report.get("status") != "passed":
+            for failure in report.get("failures", [])[:8]:
+                print(f"FAIL {failure.get('code')}: {failure.get('message')}", file=sys.stderr)
+            return 1
         print(output)
         return 0
     except Exception as exc:
+        write_probe_report(
+            project_dir,
+            selected,
+            output_dir / "probe_render.mp4",
+            manifest,
+            status="failed",
+            decode_status="failed",
+            failures=[
+                {
+                    "code": "probe_render_failed",
+                    "stage": "probe_render",
+                    "message": str(exc),
+                    "required_action": "Fix the probe render, source media, codec, or frame extraction error and rerun.",
+                }
+            ],
+        )
         print(str(exc), file=sys.stderr)
         return 1
 

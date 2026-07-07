@@ -1,0 +1,5 @@
+{
+  "scenario": "missing_media_project",
+  "stage": "S0_intake",
+  "expected_failure_codes": ["missing_script", "missing_oral_video"]
+}

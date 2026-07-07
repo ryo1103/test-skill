@@ -1,0 +1,5 @@
+{
+  "scenario": "title_overflow_project",
+  "stage": "S6_text_layout",
+  "expected_failure_codes": ["title_overflow"]
+}

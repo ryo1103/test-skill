@@ -1,0 +1,5 @@
+{
+  "scenario": "final_short_video_stream_project",
+  "stage": "S8_final_render_and_validation",
+  "expected_failure_codes": ["final_video_stream_shorter_than_audio"]
+}

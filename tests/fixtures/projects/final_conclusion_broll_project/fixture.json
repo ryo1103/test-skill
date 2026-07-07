@@ -1,0 +1,5 @@
+{
+  "scenario": "final_conclusion_broll_project",
+  "stage": "S4_base_timeline",
+  "expected_failure_codes": ["final_conclusion_not_talking_head"]
+}

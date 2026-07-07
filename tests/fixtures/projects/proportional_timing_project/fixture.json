@@ -1,0 +1,5 @@
+{
+  "scenario": "proportional_timing_project",
+  "stage": "S1_script_and_subtitles",
+  "expected_failure_codes": ["subtitle_timing_draft_only"]
+}

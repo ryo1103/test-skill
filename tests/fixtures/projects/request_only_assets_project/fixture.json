@@ -1,0 +1,5 @@
+{
+  "scenario": "request_only_assets_project",
+  "stage": "S3_asset_sourcing",
+  "expected_failure_codes": ["insufficient_distinct_materialized_video_broll"]
+}

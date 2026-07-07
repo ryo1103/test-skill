@@ -746,6 +746,14 @@ Before final render, confirm all old and new gates passed:
 15. `subtitle_style_audit.json` passes.
 16. Probe render exists and decodes.
 
+Run the executable final gate:
+
+```bash
+python scripts/audit_workflow_integration.py <project_dir>
+```
+
+This audit is the final pre-render gate. Do not render `output/final.mp4` unless `work/plan/workflow_integration_audit.json.status = passed`. Do not give a successful final answer unless the integration audit passed. If the audit fails, continue remediation or report the exact missing user dependency.
+
 If any item fails, run the Gate Remediation Loop and rerun the failed audit. Do not render final MP4 until the failed item is resolved. Style contracts, topic banners, layout preflight, and probe render are additive quality gates; they cannot replace asset sourcing, visual strategy planning, visual ratio audit, source uniqueness audit, source playback audit, or HyperFrame polish guard.
 
 ## Rendering Guidance
@@ -811,37 +819,57 @@ When the user says `帮我剪这个视频`, `用这个 skill 做成短视频`, o
    - talking-head pivot reason
 6. Create `subtitle_cues.json` from audio-aligned semantic cues.
 7. Create initial `visual_strategy.csv` and `shot_plan.json`.
-8. Run related-news/event source scan before generic stock search.
-9. Check local assets for every B-roll/screen-recording/image-motion shot.
-10. If local B-roll is missing or insufficient, search online using `asset-sourcing.md`.
-11. Write/update:
+8. Run:
+   ```bash
+   python scripts/audit_visual_strategy.py <project_dir>
+   ```
+9. Run related-news/event source scan before generic stock search.
+10. Check local assets for every B-roll/screen-recording/image-motion shot.
+11. If local B-roll is missing or insufficient, search online using `asset-sourcing.md`.
+12. Write/update:
     - `work/plan/news_source_plan.json`
     - `work/plan/asset_search_plan.json`
     - `work/plan/video_source_audit.csv`
     - `assets/sources.csv`
     - `assets/metadata/asset_manifest.json`
-12. If enough lawful relevant B-roll/video/image/screen-recording assets cannot be found, stop at the sourcing stage and report the shortage. Do not render final MP4 from HyperFrame, generated diagrams, text cards, or placeholder motion.
-13. After selected assets exist on disk, finalize `shot_plan.json` and `edit_manifest.csv`.
-14. Compute `work/plan/visual_ratio_audit.json` using selected assets:
+13. Run:
+   ```bash
+   python scripts/audit_asset_gate.py <project_dir>
+   ```
+14. If enough lawful relevant B-roll/video/image/screen-recording assets cannot be found, stop at the sourcing stage and report the shortage. Do not render final MP4 from HyperFrame, generated diagrams, text cards, or placeholder motion.
+15. After selected assets exist on disk, finalize `shot_plan.json` and `edit_manifest.csv`.
+16. Run:
+   ```bash
+   python scripts/audit_visual_ratio.py <project_dir>
+   ```
+   It computes `work/plan/visual_ratio_audit.json` using selected assets:
     - full-screen digital human target: `15%-28%`
     - B-roll / related footage / screen recording / image motion target: `50%-70%`
     - HyperFrame / AE motion graphics target: `8%-18%`
-15. If visual ratio audit fails, revise the shot plan, source more B-roll, shorten digital-human spans, or downgrade unnecessary HyperFrames.
-16. For accepted HyperFrame/AE shots, create `design_plan`, `animation_plan`, `hyperframe_polish_guard`, render standalone clips, capture `0/25/50/75/100` snapshots, and verify decode.
-17. Run source uniqueness audit.
-18. Run source playback audit.
-19. Run layout preflight:
-    - `audit_layout_plan.py`
+17. If visual ratio audit fails, revise the shot plan, source more B-roll, shorten digital-human spans, or downgrade unnecessary HyperFrames.
+18. For accepted HyperFrame/AE shots, create `design_plan`, `animation_plan`, `hyperframe_polish_guard`, render standalone clips, capture `0/25/50/75/100` snapshots, and verify decode.
+19. Run:
+   ```bash
+   python scripts/audit_source_usage.py <project_dir>
+   python scripts/audit_hyperframe_plan.py <project_dir>
+   ```
+20. Run layout preflight:
+    - `python scripts/audit_layout_plan.py <project_dir>`
     - style preview contact sheet
     - topic banner audit
     - subtitle style audit
-20. Render `probe_render.mp4`.
-21. Extract probe frames and inspect layout.
-22. If any gate fails, run the Gate Remediation Loop, update `remediation_log.json`, and rerun the failed audit.
-23. Only if all gates pass after remediation, render `final.mp4`.
-24. If remediation is exhausted, write `output/FINAL_BLOCKED.md` with attempted fixes and the exact missing user credential/permission/asset/timestamp.
-25. Extract final QC frames.
-26. Export editable package.
+21. Run:
+   ```bash
+   python scripts/render_probe.py <project_dir>
+   python scripts/audit_workflow_integration.py <project_dir>
+   ```
+22. Extract probe frames and inspect layout. If `visual_inspection_report.json.status != passed`, do not mark QC complete.
+23. If any gate fails, run the Gate Remediation Loop, update `remediation_log.json`, and rerun the failed audit. These scripts failing cannot be skipped.
+24. Only if all gates pass after remediation, render `final.mp4`.
+25. If remediation is exhausted, write `output/FINAL_BLOCKED.md` with attempted fixes and the exact missing user credential/permission/asset/timestamp.
+26. Extract final QC frames.
+27. Rerun `python scripts/audit_workflow_integration.py <project_dir>` before the final response.
+28. Export editable package.
 
 ## Editable Package
 
@@ -914,22 +942,72 @@ Case A: project has no B-roll.
 
 Expected:
 
+- `python scripts/audit_asset_gate.py <project_dir>` fails.
+- Codex generates `asset_search_plan.json`, performs sourcing, and writes `video_source_audit.csv`.
 - Codex does not render `final.mp4` directly.
-- Codex first generates `asset_search_plan.json`.
-- Codex performs online asset sourcing.
-- Codex writes `video_source_audit.csv`.
+- Codex does not use HyperFrame, generated diagrams, generated bitmap assets, text cards, or placeholder motion as B-roll substitutes.
 - If enough lawful relevant assets cannot be found, Codex stops and outputs a shortage report.
 
-Case B: script includes process, comparison, timeline, or cause-effect logic.
+Case B: `asset_search_plan.json` is an empty template.
 
 Expected:
 
-- Related rows in `visual_strategy.csv` set `ae_overlay_candidate = yes`.
-- `ae_overlay_type` is filled correctly.
-- HyperFrame candidates have `hyperframe_score` and a reason.
-- Segments that do not justify HyperFrame are downgraded to B-roll + light overlay.
+- `python scripts/audit_asset_gate.py <project_dir>` fails.
+- File existence alone does not satisfy the asset gate.
 
-Case C: project has B-roll, but not enough to support the `50%-70%` B-roll target.
+Case C: `visual_strategy.csv` has only a header and no rows.
+
+Expected:
+
+- `python scripts/audit_visual_strategy.py <project_dir>` fails.
+- Codex must generate semantic script-to-visual rows before continuing.
+
+Case D: script includes process, comparison, timeline, cause-effect, KPI/data, system structure, or decision logic, but visual strategy lacks AE/HyperFrame decisions.
+
+Expected:
+
+- `python scripts/audit_visual_strategy.py <project_dir>` fails.
+- Related rows in `visual_strategy.csv` must set `ae_overlay_candidate = yes/no`.
+- HyperFrame candidates must have `hyperframe_score`, `hyperframe_reason`, and `why_simple_broll_is_not_enough`.
+- Required-trigger downgrades must include `downgrade_reason`, `why_simple_broll_is_enough`, and a user-visible warning.
+
+Case E: `visual_ratio_audit.json.status = not_run`.
+
+Expected:
+
+- `python scripts/audit_workflow_integration.py <project_dir>` fails.
+- Empty or not-run audit files cannot satisfy final readiness.
+
+Case F: source uniqueness or playback audit is an empty template.
+
+Expected:
+
+- `python scripts/audit_workflow_integration.py <project_dir>` fails.
+- `source_uniqueness_audit.json.status = passed` and `source_playback_audit.json.status = passed` are required before final render.
+
+Case G: probe render misses B-roll, topic banner, talking head, or long subtitle coverage that exists in `edit_manifest.csv`.
+
+Expected:
+
+- `python scripts/render_probe.py <project_dir>` fails or writes `probe_render_report.json.status = failed`.
+- `python scripts/audit_workflow_integration.py <project_dir>` also fails.
+
+Case H: layout QC passed but asset gate failed.
+
+Expected:
+
+- `python scripts/audit_workflow_integration.py <project_dir>` fails.
+- Large subtitles, topic banner, layout preflight, and probe render do not replace asset sourcing, visual strategy, visual ratio, source uniqueness, source playback, or HyperFrame polish guard.
+
+Case I: all gates passed.
+
+Expected:
+
+- `python scripts/audit_workflow_integration.py <project_dir>` passes.
+- `workflow_integration_audit.json.status = passed`.
+- Final render may continue.
+
+Case J: project has B-roll, but not enough to support the `50%-70%` B-roll target.
 
 Expected:
 
@@ -937,20 +1015,20 @@ Expected:
 - Codex continues sourcing or shortens non-essential durations, records attempts in `remediation_log.json`, and reruns the audit.
 - Codex does not use repeated assets, looped assets, generated cards, or placeholder motion to pad runtime.
 
-Case D: added style features are enabled.
+Case K: added style features are enabled.
 
 Expected:
 
 - Large subtitles, persistent topic banner, layout preflight, and probe render run normally.
 - These steps happen after the asset gate, visual ratio gate, source uniqueness audit, and source playback audit; they do not replace those gates.
 
-Case E: final render.
+Case L: final render.
 
 Expected:
 
-- Final render starts only after all pass: asset gate, visual strategy / AE candidate gate, visual ratio audit, source uniqueness audit, source playback audit, HyperFrame polish guard, layout QC, and probe render.
+- Final render starts only after all pass: asset gate, visual strategy / AE candidate gate, visual ratio audit, source uniqueness audit, source playback audit, HyperFrame polish guard, layout QC, probe render, visual inspection, and workflow integration audit.
 
-Case F: a gate fails during production.
+Case M: a gate fails during production.
 
 Expected:
 

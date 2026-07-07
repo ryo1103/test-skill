@@ -1,4 +1,4 @@
 interface:
   display_name: "Short Video Editor"
-  short_description: "Video-first sourcing, large captions, topic banners, QC gates, and recut-ready edits"
-  default_prompt: "Use $short-video-editor to make a video-first B-roll edit with large Chinese short-video captions, an auto-generated persistent topic banner, layout preflight, probe render, short full-screen digital-human beats, polish-guarded selective HyperFrames, related-news/video素材 sourcing, and a recut-ready package."
+  short_description: "Video-first sourcing, executable workflow gates, large captions, and recut-ready edits"
+  default_prompt: "Use $short-video-editor to make a video-first B-roll edit with large Chinese short-video captions, an auto-generated persistent topic banner, layout preflight, probe render, short full-screen digital-human beats, polish-guarded selective HyperFrames, related-news/video素材 sourcing, executable workflow audits, and a recut-ready package."

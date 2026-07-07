@@ -1,0 +1,38 @@
+name: short-video-engine
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Run pytest
+        run: python -m pytest
+
+      - name: CLI help
+        run: python skills/short-video-editor/engine/short_video_engine/cli.py --help
+
+      - name: Smoke init
+        run: python skills/short-video-editor/engine/short_video_engine/cli.py init --project-dir /tmp/svideo-smoke
+
+      - name: Selected validators
+        run: |
+          set +e
+          python skills/short-video-editor/engine/short_video_engine/cli.py run --project-dir /tmp/svideo-smoke --from-stage S0_intake --to-stage S0_intake
+          python skills/short-video-editor/engine/short_video_engine/cli.py validate-stage --project-dir /tmp/svideo-smoke --stage S0_intake
+          test $? -ne 0

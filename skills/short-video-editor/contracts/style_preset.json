@@ -1,0 +1,35 @@
+{
+  "preset": "large_short_video_caption",
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "safe_area": {
+      "top": 120,
+      "bottom": 210,
+      "left": 72,
+      "right": 72
+    }
+  },
+  "subtitle": {
+    "font_size_px": 82,
+    "font_size_min_px": 72,
+    "font_size_emphasis_px": 94,
+    "line_count_max": 2,
+    "chars_per_cue_target_min": 6,
+    "chars_per_cue_target_max": 14,
+    "chars_per_cue_hard_max": 18,
+    "visible_punctuation_policy": "remove_unless_semantic_required",
+    "require_audio_derived_timing_for_final": true
+  },
+  "persistent_topic_banner": {
+    "enabled": true,
+    "required_for_final_render": true,
+    "position": {
+      "x": 170,
+      "y": 128,
+      "width": 740,
+      "height": 230
+    }
+  }
+}

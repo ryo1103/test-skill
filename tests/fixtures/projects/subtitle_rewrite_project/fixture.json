@@ -1,0 +1,5 @@
+{
+  "scenario": "subtitle_rewrite_project",
+  "stage": "S1_script_and_subtitles",
+  "expected_failure_codes": ["display_text_rewrites_source"]
+}

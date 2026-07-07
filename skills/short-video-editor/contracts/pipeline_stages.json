@@ -1,0 +1,54 @@
+{
+  "stages": [
+    {
+      "id": "S0_intake",
+      "owner": "short_video_engine.stages.s0_intake",
+      "description": "Read source script and oral video metadata."
+    },
+    {
+      "id": "S1_script_and_subtitles",
+      "owner": "short_video_engine.stages.s1_script_and_subtitles",
+      "description": "Create script units and subtitle cues from source script and audio/manual timing."
+    },
+    {
+      "id": "S1_5_subtitle_layout_planning",
+      "owner": "short_video_engine.stages.s1_5_subtitle_layout_planning",
+      "description": "Plan readable subtitle layout beats before visual shot compilation."
+    },
+    {
+      "id": "S2_visual_plan",
+      "owner": "short_video_engine.stages.s2_visual_plan",
+      "description": "Create semantic shot plan and visual roles."
+    },
+    {
+      "id": "S3_asset_sourcing",
+      "owner": "short_video_engine.stages.s3_asset_sourcing",
+      "description": "Materialize lawful local B-roll assets with source evidence."
+    },
+    {
+      "id": "S4_base_timeline",
+      "owner": "short_video_engine.stages.s4_base_timeline",
+      "description": "Compile base plate from talking-head and B-roll timeline rows."
+    },
+    {
+      "id": "S5_motion_overlay",
+      "owner": "short_video_engine.stages.s5_motion_overlay",
+      "description": "Render real motion overlay artifacts for subtitle-timed logic segments."
+    },
+    {
+      "id": "S6_text_layout",
+      "owner": "short_video_engine.stages.s6_text_layout",
+      "description": "Generate SRT/ASS subtitles and deterministic layout evidence."
+    },
+    {
+      "id": "S7_process_validation",
+      "owner": "short_video_engine.stages.s7_process_validation",
+      "description": "Generate probe render and representative validation frames."
+    },
+    {
+      "id": "S8_final_render_and_validation",
+      "owner": "short_video_engine.stages.s8_final_render_and_validation",
+      "description": "Render final video, QC frames, edit package, and production acceptance."
+    }
+  ]
+}
