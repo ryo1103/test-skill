@@ -37,6 +37,12 @@ Prerequisites:
 
 - Python 3.11 or newer.
 - `ffmpeg` and `ffprobe` available on `PATH`.
+- `Pillow` for deterministic transparent motion overlays:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
 - Optional but recommended: API keys for stock providers such as `PEXELS_API_KEY`, `PIXABAY_API_KEY`, or `COVERR_API_KEY`. Without them, the engine can still try free/no-key sources, but S3 may block if it cannot materialize enough distinct B-roll.
 
 Prepare a project folder with these files:
@@ -141,7 +147,7 @@ Ask Codex to run the engine, not to hand-write reports:
 ## Troubleshooting
 
 - `S3_asset_sourcing` fail: real, relevant, distinct, materialized local video B-roll is insufficient, or downloaded assets lack source/license/decode evidence.
-- `S5_motion_overlay` fail: required logic motion is not a real overlay artifact, is static, is only ASS/drawtext, or lacks start/mid/end evidence.
+- `S5_motion_overlay` fail: required logic motion is not a real overlay artifact, is static, is only ASS/drawtext, lacks start/mid/end evidence, or the local Python runtime is missing `Pillow`.
 - `S8_final_render_and_validation` fail: `final.mp4` stream duration, last-frame timestamp, QC frames, motion/title/text evidence, or edit package media layers are incomplete.
 
 Use the validator output failure codes as the source of truth:

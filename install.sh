@@ -24,4 +24,12 @@ cp -R "$SOURCE_DIR" "$TARGET_DIR"
 find "$TARGET_DIR" -name ".DS_Store" -delete
 
 echo "Installed short-video-editor to: $TARGET_DIR"
+if ! python3 - <<'PY' >/dev/null 2>&1
+import PIL
+PY
+then
+  echo "Warning: Python package Pillow is not installed for python3."
+  echo "Install it before production motion rendering:"
+  echo "  python3 -m pip install -r \"$TARGET_DIR/requirements.txt\""
+fi
 echo "Restart Codex to refresh the skill list."
