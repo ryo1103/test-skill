@@ -23,10 +23,10 @@ ROLE_PATTERNS = {
 RELATION_PATTERNS = [
     ("not_x_but_y", re.compile(r"不是.+而是|not\s+.+\s+but", re.I)),
     ("comparison", re.compile(r"对比|比较|相比|更高|更低| versus | vs\\.? |compare|comparison", re.I)),
-    ("process", re.compile(r"流程|步骤|第一|第二|第三|迁移|process|step|workflow", re.I)),
+    ("process", re.compile(r"流程|步骤|第一|第二|第三|迁移|人工对准|晶圆制造|一次做好|process|step|workflow", re.I)),
     ("cause_effect", re.compile(r"因为|导致|所以|原因|结果|因果|cause|effect|therefore", re.I)),
     ("timeline", re.compile(r"时间线|阶段|周期|去年|今年|明年|timeline|phase", re.I)),
-    ("kpi_change", re.compile(r"指标|数据|增长|下降|成本|效率|风险|%|倍|kpi|metric|cost|efficiency|risk", re.I)),
+    ("kpi_change", re.compile(r"指标|数据|增长|增加|下降|成本|效率|风险|规模|%|倍|kpi|metric|cost|efficiency|risk", re.I)),
     ("structure", re.compile(r"结构|系统|架构|组成|链路|器件|连接器|理解成|structure|system|architecture", re.I)),
 ]
 BEFORE_AFTER_PATTERN = re.compile(r"之前|之后|以前|现在|过去|新做法|新方案|before|after", re.I)

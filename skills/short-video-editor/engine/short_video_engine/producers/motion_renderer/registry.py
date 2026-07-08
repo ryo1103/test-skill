@@ -55,3 +55,14 @@ REQUIRED_FIELDS_BY_RELATION = {
     "comparison": ["left_side", "right_side", "comparison_axis"],
     "kpi_change": ["metric", "delta"],
 }
+
+SEMANTIC_TEMPLATE_BY_ACTION = {
+    "negate_and_redefine": "negation_to_connector_scene",
+    "connector_metaphor": "connector_flow_scene",
+    "metric_growth": "metric_growth_scene",
+    "process_migration": "process_migration_scene",
+    "density_comparison": "density_pressure_scene",
+    "concept_definition": "concept_definition_scene",
+    "cause_to_result": "cause_to_result_scene",
+    "before_after_change": "before_after_scene",
+}

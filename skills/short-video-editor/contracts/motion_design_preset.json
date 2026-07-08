@@ -58,6 +58,14 @@
     "comparison_split_glass",
     "not_x_but_y_pivot_panel",
     "system_error_terminal",
-    "callout_lens_overlay"
+    "callout_lens_overlay",
+    "negation_to_connector_scene",
+    "connector_flow_scene",
+    "metric_growth_scene",
+    "process_migration_scene",
+    "density_pressure_scene",
+    "concept_definition_scene",
+    "cause_to_result_scene",
+    "before_after_scene"
   ]
 }

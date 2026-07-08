@@ -171,7 +171,20 @@ def draw_hud_frame(pixels: bytearray, width: int, height: int, template: str, pr
     glow = int(80 + 80 * progress)
     draw_scan_grid(pixels, width, height, progress)
     draw_panel_shell(pixels, width, height, panel_x, panel_y, panel_w, panel_h, progress)
-    if template == "chip_node_network":
+    if template == "negation_to_connector_scene":
+        draw_semantic_negation(pixels, width, height, progress)
+    elif template == "connector_flow_scene":
+        draw_semantic_connector(pixels, width, height, progress)
+    elif template == "metric_growth_scene":
+        draw_meters(pixels, width, height, progress)
+        draw_direction_arrow(pixels, width, height, progress)
+    elif template == "process_migration_scene":
+        draw_semantic_process(pixels, width, height, progress)
+    elif template == "density_pressure_scene":
+        draw_semantic_density(pixels, width, height, progress)
+    elif template in {"concept_definition_scene", "cause_to_result_scene", "before_after_scene"}:
+        draw_semantic_connector(pixels, width, height, progress)
+    elif template == "chip_node_network":
         draw_network(pixels, width, height, progress, glow)
     elif template == "system_error_terminal":
         draw_terminal(pixels, width, height, progress, index)
@@ -185,6 +198,55 @@ def draw_hud_frame(pixels: bytearray, width: int, height: int, template: str, pr
         draw_lens(pixels, width, height, progress)
     else:
         draw_concept_card(pixels, width, height, progress)
+
+
+def draw_semantic_negation(pixels: bytearray, width: int, height: int, progress: float) -> None:
+    a = min(progress * 1.7, 1)
+    b = min(max(progress - 0.18, 0) * 1.8, 1)
+    c = min(max(progress - 0.42, 0) * 1.8, 1)
+    rect_rgba(pixels, width, height, 172, 810, 260, 160, (70, 90, 128, int(150 * a)))
+    rect_rgba(pixels, width, height, 648, 810, 260, 160, (70, 90, 128, int(150 * b)))
+    rect_rgba(pixels, width, height, 454, 1012, 172, 146, (28, 126, 92, int(170 * c)))
+    rect_rgba(pixels, width, height, 188, 884, int(228 * a), 10, (255, 92, 122, int(230 * a)))
+    rect_rgba(pixels, width, height, 664, 884, int(228 * b), 10, (255, 92, 122, int(230 * b)))
+    rect_rgba(pixels, width, height, 260, 1080, int(560 * c), 9, (248, 211, 77, int(230 * c)))
+    rect_rgba(pixels, width, height, 810, 1068, int(38 * c), 32, (248, 211, 77, int(230 * c)))
+
+
+def draw_semantic_connector(pixels: bytearray, width: int, height: int, progress: float) -> None:
+    xs = [250, 540, 830]
+    for idx, x in enumerate(xs):
+        local = max(0.0, min(1.0, progress * 3.2 - idx * 0.42))
+        rect_rgba(pixels, width, height, x - 78, 890, 156, 126, (12, 36, 54, int(90 + 105 * local)))
+        rect_rgba(pixels, width, height, x - 18, 930, 36, 36, (114, 235, 203, int(210 * local)))
+    flow = min(max(progress - 0.22, 0) * 1.45, 1)
+    rect_rgba(pixels, width, height, 328, 950, int(424 * flow), 12, (248, 211, 77, int(230 * flow)))
+    rect_rgba(pixels, width, height, 744, 938, int(38 * flow), 36, (248, 211, 77, int(230 * flow)))
+
+
+def draw_direction_arrow(pixels: bytearray, width: int, height: int, progress: float) -> None:
+    local = min(max(progress - 0.5, 0) * 2, 1)
+    rect_rgba(pixels, width, height, 430, 1166, int(250 * local), 12, (248, 211, 77, int(230 * local)))
+    rect_rgba(pixels, width, height, 668, 1154, int(38 * local), 36, (248, 211, 77, int(230 * local)))
+
+
+def draw_semantic_process(pixels: bytearray, width: int, height: int, progress: float) -> None:
+    rect_rgba(pixels, width, height, 184, 840, 250, 100, (255, 92, 122, int(86 + 54 * progress)))
+    rect_rgba(pixels, width, height, 194, 902, int(218 * min(progress * 1.4, 1)), 8, (255, 92, 122, 220))
+    draw_semantic_connector(pixels, width, height, progress)
+    rect_rgba(pixels, width, height, 638, 1030, 250, 100, (114, 235, 203, int(86 + 92 * progress)))
+    rect_rgba(pixels, width, height, 438, 1014, int(210 * min(max(progress - 0.35, 0) * 1.7, 1)), 10, (248, 211, 77, 230))
+
+
+def draw_semantic_density(pixels: bytearray, width: int, height: int, progress: float) -> None:
+    left = min(progress * 1.4, 1)
+    pressure = min(max(progress - 0.22, 0) * 1.7, 1)
+    expand = min(max(progress - 0.48, 0) * 1.9, 1)
+    rect_rgba(pixels, width, height, 184, 840, 250, 270, (38, 90, 128, int(140 * left)))
+    for x in (440, 470, 500):
+        rect_rgba(pixels, width, height, x, 848, 8, int(246 * pressure), (255, 92, 122, int(210 * pressure)))
+    rect_rgba(pixels, width, height, 596, 870, int(300 + 110 * expand), 220, (28, 126, 92, int(120 + 72 * expand)))
+    rect_rgba(pixels, width, height, 620, 980, int(236 * expand), 12, (248, 211, 77, 230))
 
 
 def draw_scan_grid(pixels: bytearray, width: int, height: int, progress: float) -> None:
@@ -386,13 +448,67 @@ console.log(JSON.stringify({status: 'rendered', output, frameCount, template}));
 function drawFrame(px, w, h, tpl, p, index) {
   scanGrid(px, w, h, p);
   panel(px, w, h, 112, 688, 856, 588, p);
-  if (tpl === 'system_error_terminal') terminal(px, w, h, p, index);
+  if (tpl === 'negation_to_connector_scene') semanticNegation(px, w, h, p);
+  else if (tpl === 'connector_flow_scene') semanticConnector(px, w, h, p);
+  else if (tpl === 'metric_growth_scene') { meters(px, w, h, p); directionArrow(px, w, h, p); }
+  else if (tpl === 'process_migration_scene') semanticProcess(px, w, h, p);
+  else if (tpl === 'density_pressure_scene') semanticDensity(px, w, h, p);
+  else if (tpl === 'concept_definition_scene' || tpl === 'cause_to_result_scene' || tpl === 'before_after_scene') semanticConnector(px, w, h, p);
+  else if (tpl === 'system_error_terminal') terminal(px, w, h, p, index);
   else if (tpl === 'kpi_dual_meter_panel') meters(px, w, h, p);
   else if (tpl === 'process_milestone_rail') rail(px, w, h, p);
   else if (tpl === 'comparison_split_glass' || tpl === 'not_x_but_y_pivot_panel') split(px, w, h, p);
   else if (tpl === 'callout_lens_overlay') lens(px, w, h, p);
   else if (tpl === 'tech_hud_concept_card') concept(px, w, h, p);
   else network(px, w, h, p);
+}
+
+function semanticNegation(px, w, h, p) {
+  const a = Math.min(p * 1.7, 1);
+  const b = Math.min(Math.max(p - 0.18, 0) * 1.8, 1);
+  const c = Math.min(Math.max(p - 0.42, 0) * 1.8, 1);
+  rect(px, w, h, 172, 810, 260, 160, [70, 90, 128, Math.round(150 * a)]);
+  rect(px, w, h, 648, 810, 260, 160, [70, 90, 128, Math.round(150 * b)]);
+  rect(px, w, h, 454, 1012, 172, 146, [28, 126, 92, Math.round(170 * c)]);
+  rect(px, w, h, 188, 884, Math.round(228 * a), 10, [255, 92, 122, Math.round(230 * a)]);
+  rect(px, w, h, 664, 884, Math.round(228 * b), 10, [255, 92, 122, Math.round(230 * b)]);
+  rect(px, w, h, 260, 1080, Math.round(560 * c), 9, [248, 211, 77, Math.round(230 * c)]);
+  rect(px, w, h, 810, 1068, Math.round(38 * c), 32, [248, 211, 77, Math.round(230 * c)]);
+}
+
+function semanticConnector(px, w, h, p) {
+  [250, 540, 830].forEach((x, idx) => {
+    const local = Math.max(0, Math.min(1, p * 3.2 - idx * 0.42));
+    rect(px, w, h, x - 78, 890, 156, 126, [12, 36, 54, Math.round(90 + 105 * local)]);
+    rect(px, w, h, x - 18, 930, 36, 36, [114, 235, 203, Math.round(210 * local)]);
+  });
+  const flow = Math.min(Math.max(p - 0.22, 0) * 1.45, 1);
+  rect(px, w, h, 328, 950, Math.round(424 * flow), 12, [248, 211, 77, Math.round(230 * flow)]);
+  rect(px, w, h, 744, 938, Math.round(38 * flow), 36, [248, 211, 77, Math.round(230 * flow)]);
+}
+
+function directionArrow(px, w, h, p) {
+  const q = Math.min(Math.max(p - 0.5, 0) * 2, 1);
+  rect(px, w, h, 430, 1166, Math.round(250 * q), 12, [248, 211, 77, Math.round(230 * q)]);
+  rect(px, w, h, 668, 1154, Math.round(38 * q), 36, [248, 211, 77, Math.round(230 * q)]);
+}
+
+function semanticProcess(px, w, h, p) {
+  rect(px, w, h, 184, 840, 250, 100, [255, 92, 122, Math.round(86 + 54 * p)]);
+  rect(px, w, h, 194, 902, Math.round(218 * Math.min(p * 1.4, 1)), 8, [255, 92, 122, 220]);
+  semanticConnector(px, w, h, p);
+  rect(px, w, h, 638, 1030, 250, 100, [114, 235, 203, Math.round(86 + 92 * p)]);
+  rect(px, w, h, 438, 1014, Math.round(210 * Math.min(Math.max(p - 0.35, 0) * 1.7, 1)), 10, [248, 211, 77, 230]);
+}
+
+function semanticDensity(px, w, h, p) {
+  const left = Math.min(p * 1.4, 1);
+  const pressure = Math.min(Math.max(p - 0.22, 0) * 1.7, 1);
+  const expand = Math.min(Math.max(p - 0.48, 0) * 1.9, 1);
+  rect(px, w, h, 184, 840, 250, 270, [38, 90, 128, Math.round(140 * left)]);
+  [440, 470, 500].forEach((x) => rect(px, w, h, x, 848, 8, Math.round(246 * pressure), [255, 92, 122, Math.round(210 * pressure)]));
+  rect(px, w, h, 596, 870, Math.round(300 + 110 * expand), 220, [28, 126, 92, Math.round(120 + 72 * expand)]);
+  rect(px, w, h, 620, 980, Math.round(236 * expand), 12, [248, 211, 77, 230]);
 }
 
 function scanGrid(px, w, h, p) {
@@ -502,7 +618,25 @@ async function annotateText(file, tpl, p) {
 function textOverlaySvg(tpl, p) {
   const opacity = Math.max(0, Math.min(1, (p - 0.08) / 0.28));
   const parts = [];
-  if (tpl === 'chip_node_network') {
+  if (tpl === 'negation_to_connector_scene') {
+    parts.push(svgText(label(0, '芯片'), 302, 900, 30, '#FFFFFF', 800, opacity, 'middle'));
+    parts.push(svgText(label(1, '光模块'), 778, 900, 30, '#FFFFFF', 800, opacity, 'middle'));
+    parts.push(svgText(label(2, '连接器'), 540, 1104, 28, '#FFFFFF', 800, opacity, 'middle'));
+  } else if (tpl === 'connector_flow_scene' || tpl === 'concept_definition_scene' || tpl === 'cause_to_result_scene' || tpl === 'before_after_scene') {
+    [[250, 1050], [540, 1050], [830, 1050]].forEach(([x, y], i) => parts.push(svgText(label(i, ['输入','连接器','输出'][i]), x, y, 26, '#FFFFFF', 750, opacity, 'middle')));
+  } else if (tpl === 'metric_growth_scene') {
+    parts.push(svgText(label(0, '连接规模'), 260, 820, 28, '#FFFFFF', 750, opacity));
+    parts.push(svgText(label(2, '快速增加'), 260, 1010, 28, '#FFFFFF', 750, opacity));
+    parts.push(svgText('GROWTH', 540, 1210, 22, '#F8D34D', 900, opacity, 'middle'));
+  } else if (tpl === 'process_migration_scene') {
+    parts.push(svgText(label(0, '旧路径'), 310, 930, 26, '#FFFFFF', 800, opacity, 'middle'));
+    parts.push(svgText(label(1, '新路径'), 540, 1048, 26, '#FFFFFF', 800, opacity, 'middle'));
+    parts.push(svgText(label(2, '结果'), 763, 1120, 26, '#FFFFFF', 800, opacity, 'middle'));
+  } else if (tpl === 'density_pressure_scene') {
+    parts.push(svgText(label(0, 'FAU'), 310, 990, 28, '#FFFFFF', 800, opacity, 'middle'));
+    parts.push(svgText(label(1, '高密度压力'), 480, 820, 22, '#FF5C7A', 800, opacity, 'middle'));
+    parts.push(svgText(label(2, 'GlassBridge'), 746, 1000, 28, '#FFFFFF', 800, opacity, 'middle'));
+  } else if (tpl === 'chip_node_network') {
     [[250, 990], [430, 790], [650, 1068], [830, 848]].forEach(([x, y], i) => {
       parts.push(svgText(label(i, `节点${i + 1}`), x, y, 24, '#FFFFFF', 700, opacity, 'middle'));
     });

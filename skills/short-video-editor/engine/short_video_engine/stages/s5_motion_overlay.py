@@ -9,10 +9,13 @@ from ..stage_result import DRAFT_ONLY, FINAL_BLOCKED, PASS, StageResult, current
 
 
 def run(project_dir: Path, **options: object) -> StageResult:
+    index_payload = read_json(plan_dir(project_dir) / "required_motion_index.json", {})
+    indexed_required = index_payload.get("required_motions") if isinstance(index_payload, dict) else None
     shot_plan = read_json(plan_dir(project_dir) / "shot_plan.json", {})
     shots = shot_plan.get("shots", []) if isinstance(shot_plan, dict) else []
     required = [shot for shot in shots if isinstance(shot, dict) and shot.get("motion_overlay_required")]
-    if not required:
+    index_has_required = isinstance(indexed_required, list) and any(isinstance(item, dict) and item.get("motion_required") is True for item in indexed_required)
+    if not required and not index_has_required:
         report_path = plan_dir(project_dir) / "motion_overlay_report.json"
         write_json(report_path, {"generated_by": "short_video_engine", "status": PASS, "motion_required": False})
         return StageResult("S5_motion_overlay", PASS, "s5_motion_overlay", current_command(), outputs=[report_path])

@@ -1,0 +1,46 @@
+{
+  "generated_by": "short_video_engine",
+  "contract_id": "semantic_motion_contract_v1",
+  "semantic_actions": {
+    "negate_and_redefine": {
+      "required_slots": ["subject", "rejected_a", "rejected_b", "accepted_definition"],
+      "required_visual_actions": ["show_rejected_a", "reject_a", "show_rejected_b", "reject_b", "reveal_definition", "show_connection_flow"],
+      "recommended_template": "negation_to_connector_scene"
+    },
+    "connector_metaphor": {
+      "required_slots": ["input", "connector", "output"],
+      "required_visual_actions": ["input_flow", "through_connector", "output_flow"],
+      "recommended_template": "connector_flow_scene"
+    },
+    "metric_growth": {
+      "required_slots": ["metric", "baseline", "target_or_delta"],
+      "required_visual_actions": ["bar_grow", "number_change", "direction_emphasis"],
+      "recommended_template": "metric_growth_scene"
+    },
+    "process_migration": {
+      "required_slots": ["old_step", "new_step", "result"],
+      "required_visual_actions": ["old_path", "transition", "new_path"],
+      "recommended_template": "process_migration_scene"
+    },
+    "density_comparison": {
+      "required_slots": ["old_solution", "new_requirement", "new_solution"],
+      "required_visual_actions": ["old_limit", "requirement_pressure", "new_solution_expansion"],
+      "recommended_template": "density_pressure_scene"
+    },
+    "concept_definition": {
+      "required_slots": ["subject", "definition", "role"],
+      "required_visual_actions": ["show_subject", "show_definition", "show_role_connection"],
+      "recommended_template": "concept_definition_scene"
+    },
+    "cause_to_result": {
+      "required_slots": ["cause", "mechanism", "result"],
+      "required_visual_actions": ["show_cause", "show_mechanism", "show_result"],
+      "recommended_template": "cause_to_result_scene"
+    },
+    "before_after_change": {
+      "required_slots": ["before", "transition", "after"],
+      "required_visual_actions": ["show_before", "transform", "show_after"],
+      "recommended_template": "before_after_scene"
+    }
+  }
+}

@@ -206,29 +206,17 @@ def validate_stage(project_dir: Path, stage: str, draft_ok: bool = False) -> Sta
     if stage == "S5_motion_overlay" and status == PASS and not failures:
         from .producers.motion_renderer.renderer import validate_layer
         from .validators.motion_design_quality import validate_motion_design_quality
+        from .validators.semantic_motion import validate_semantic_motion
 
         payload = read_json(plan_dir(project_dir) / "motion_layers.json", {})
         layers = payload.get("layers") if isinstance(payload, dict) else []
         if not isinstance(layers, list):
             layers = []
-        required = [
-            shot
-            for shot in (read_json(plan_dir(project_dir) / "shot_plan.json", {}).get("shots") or [])
-            if isinstance(shot, dict) and shot.get("motion_overlay_required")
-        ]
-        required_ids = {str(shot.get("shot_id") or "") for shot in required if shot.get("shot_id")}
-        covered_ids = set()
-        for layer in layers:
-            if isinstance(layer, dict):
-                covered_ids.update(str(item) for item in (layer.get("covered_shot_ids") or []) if str(item).strip())
-                if layer.get("shot_id"):
-                    covered_ids.add(str(layer.get("shot_id")))
-        if required_ids - covered_ids:
-            failures.append(failure("missing_required_motion_layers", "Not every required motion shot has a motion layer.", "Regenerate S5."))
         for layer in layers:
             if isinstance(layer, dict):
                 failures.extend(validate_layer(layer, project_dir))
         failures.extend(validate_motion_design_quality(project_dir, strict=not draft_ok, allow_pillow_professional=False))
+        failures.extend(validate_semantic_motion(project_dir))
     if stage == "S6_text_layout" and status == PASS and not failures:
         from .producers.text_overlay_renderer import validate_text_layout
 

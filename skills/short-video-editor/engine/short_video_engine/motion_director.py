@@ -18,6 +18,14 @@ PROFESSIONAL_TEMPLATES = {
     "not_x_but_y_pivot_panel",
     "system_error_terminal",
     "callout_lens_overlay",
+    "negation_to_connector_scene",
+    "connector_flow_scene",
+    "metric_growth_scene",
+    "process_migration_scene",
+    "density_pressure_scene",
+    "concept_definition_scene",
+    "cause_to_result_scene",
+    "before_after_scene",
 }
 
 TECH_RE = re.compile(r"GlassBridge|FAU|芯片|光纤|光互连|数据中心|算力|服务器|AI|晶圆|半导体", re.I)
@@ -51,8 +59,10 @@ def scene_for_segment(segment: dict[str, Any], shots_by_id: dict[str, dict[str, 
         script_fragment = str(shot.get("script_fragment") or segment.get("visual_claim") or "")
     relation = str(segment.get("logic_relation") or shot.get("logic_relation") or "")
     wanted_visuals = " ".join(str(item) for item in (shot.get("wanted_visuals") or shot.get("required_entities") or segment.get("logic_entities") or []))
-    template = select_scene_template(relation, script_fragment, wanted_visuals)
-    labels = [str(item) for item in (segment.get("motion_text_items") or segment.get("logic_entities") or []) if str(item).strip()]
+    template = str(segment.get("recommended_template") or "")
+    if not template:
+        template = select_scene_template(relation, script_fragment, wanted_visuals)
+    labels = semantic_labels(segment) or [str(item) for item in (segment.get("motion_text_items") or segment.get("logic_entities") or []) if str(item).strip()]
     labels = (labels + labels_for_template(template, relation))[:4]
     nodes = nodes_for_template(template, labels)
     metrics = metrics_for_template(template, segment, labels)
@@ -108,6 +118,18 @@ def select_scene_template(relation: str, script_fragment: str, wanted_visuals: s
 
 
 def labels_for_template(template: str, relation: str) -> list[str]:
+    if template == "negation_to_connector_scene":
+        return ["芯片", "光模块", "连接器", "数据流"]
+    if template == "connector_flow_scene":
+        return ["输入", "连接器", "输出"]
+    if template == "metric_growth_scene":
+        return ["基准", "增长", "方向"]
+    if template == "process_migration_scene":
+        return ["旧路径", "迁移", "新路径", "结果"]
+    if template == "density_pressure_scene":
+        return ["旧方案", "高密度压力", "新方案"]
+    if template in {"concept_definition_scene", "cause_to_result_scene", "before_after_scene"}:
+        return ["概念", "机制", "结果"]
     if template == "chip_node_network":
         return ["输入", "节点", "连接", "输出"]
     if template == "system_error_terminal":
@@ -123,6 +145,8 @@ def labels_for_template(template: str, relation: str) -> list[str]:
 
 def nodes_for_template(template: str, labels: list[str]) -> list[dict[str, Any]]:
     labels = labels or labels_for_template(template, "")
+    if template in {"negation_to_connector_scene", "connector_flow_scene", "process_migration_scene", "density_pressure_scene", "cause_to_result_scene", "before_after_scene"}:
+        return [{"id": f"n{idx + 1}", "label": label, "role": "semantic_node"} for idx, label in enumerate(labels[:4])]
     if template in {"chip_node_network", "process_milestone_rail"}:
         return [{"id": f"n{idx + 1}", "label": label, "role": "node"} for idx, label in enumerate(labels[:4])]
     if template in {"comparison_split_glass", "not_x_but_y_pivot_panel"}:
@@ -131,6 +155,14 @@ def nodes_for_template(template: str, labels: list[str]) -> list[dict[str, Any]]
 
 
 def metrics_for_template(template: str, segment: dict[str, Any], labels: list[str]) -> list[dict[str, Any]]:
+    if template == "metric_growth_scene":
+        slots = segment.get("slots") if isinstance(segment.get("slots"), dict) else {}
+        return [
+            {"id": "baseline", "label": str(slots.get("baseline") or "基准"), "value": "baseline"},
+            {"id": "delta", "label": str(slots.get("target_or_delta") or "增长"), "value": "delta"},
+        ]
+    if template == "density_pressure_scene":
+        return [{"id": "pressure", "label": "密度压力", "value": "expansion_required"}]
     if template == "kpi_dual_meter_panel":
         return [
             {"id": "m1", "label": str(segment.get("metric") or labels[0] if labels else "指标"), "value": "baseline"},
@@ -157,6 +189,14 @@ def visual_metaphor_for(template: str, relation: str) -> str:
         "not_x_but_y_pivot_panel": "pivot panel rejecting X and activating Y",
         "system_error_terminal": "terminal alert resolving into corrected state",
         "callout_lens_overlay": "magnifying lens callout locking onto key detail",
+        "negation_to_connector_scene": "two rejected states are crossed out before the accepted connector carries a signal flow",
+        "connector_flow_scene": "input signal travels through connector and exits as output",
+        "metric_growth_scene": "baseline meter grows into changed metric with directional emphasis",
+        "process_migration_scene": "old path transitions into new manufacturing path and result",
+        "density_pressure_scene": "old solution is constrained by density pressure while the new solution expands capacity",
+        "concept_definition_scene": "subject connects to definition and role through a visible relation edge",
+        "cause_to_result_scene": "cause passes through mechanism into result",
+        "before_after_scene": "before state transforms across an axis into after state",
     }.get(template, f"{relation or 'logic'} hud graphic")
 
 
@@ -189,6 +229,22 @@ def component_inventory(template: str, nodes: list[dict[str, Any]], metrics: lis
         "connector": bool(connectors),
         "metric": bool(metrics),
     }
+
+
+def semantic_labels(segment: dict[str, Any]) -> list[str]:
+    slots = segment.get("slots") if isinstance(segment.get("slots"), dict) else {}
+    action = str(segment.get("semantic_action") or "")
+    orders = {
+        "negate_and_redefine": ["rejected_a", "rejected_b", "accepted_definition", "subject"],
+        "connector_metaphor": ["input", "connector", "output"],
+        "metric_growth": ["metric", "baseline", "target_or_delta"],
+        "process_migration": ["old_step", "new_step", "result"],
+        "density_comparison": ["old_solution", "new_requirement", "new_solution"],
+        "concept_definition": ["subject", "definition", "role"],
+        "cause_to_result": ["cause", "mechanism", "result"],
+        "before_after_change": ["before", "transition", "after"],
+    }
+    return [str(slots.get(key)) for key in orders.get(action, []) if str(slots.get(key) or "").strip()]
 
 
 def subtitle_summary(subtitle_layout: dict[str, Any], segment: dict[str, Any]) -> dict[str, Any]:

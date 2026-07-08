@@ -631,23 +631,13 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("missing_motion_stagger", result.stdout)
 
-    def test_s5_system_error_and_chip_network_generate_professional_evidence(self) -> None:
+    def test_s5_semantic_templates_generate_professional_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             error_project = Path(tmp) / "error_project"
             chip_project = Path(tmp) / "chip_project"
             prepare_s5_project(error_project, script="开场介绍一句。这个错误会导致系统失败需要马上修正。最后总结观点。")
-            prepare_s5_project(chip_project, script="开场介绍一句。GlassBridge把芯片和光纤连接成节点网络。最后总结观点。")
-            mutate_json(
-                chip_project / "work" / "plan" / "shot_plan.json",
-                lambda payload: payload["shots"][0].update(
-                    {
-                        "motion_overlay_required": True,
-                        "logic_relation": "structure",
-                        "logic_relation_reason": {"reason": "explicit_chip_network_test"},
-                    }
-                ),
-            )
-            for project, expected in ((error_project, "system_error_terminal"), (chip_project, "chip_node_network")):
+            prepare_s5_project(chip_project, script="开场介绍一句。GlassBridge把芯片和光纤连接器连接成节点网络。最后总结观点。")
+            for project, expected in ((error_project, "cause_to_result_scene"), (chip_project, "connector_flow_scene")):
                 run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
                 scene = read_json(project / "work" / "plan" / "graphic_scene_plan.json")["scenes"][0]
                 layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
@@ -655,6 +645,99 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
                 self.assertEqual(layer["renderer_backend"], "motion_canvas_sequence")
                 for key in ("start", "build", "peak", "settle", "end"):
                     self.assertTrue(Path(layer["frame_evidence"][key]).exists())
+
+    def test_s5_negation_assertion_requires_rejection_and_connector_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。GlassBridge它不是一颗芯片，也不是新的光模块，而是一个光纤连接器。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            assertion = read_json(project / "work" / "plan" / "motion_assertions.json")["assertions"][0]
+            layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
+            self.assertEqual(assertion["semantic_action"], "negate_and_redefine")
+            self.assertEqual(assertion["slots"]["subject"], "GlassBridge")
+            self.assertEqual(assertion["slots"]["rejected_a"], "芯片")
+            self.assertEqual(assertion["slots"]["rejected_b"], "光模块")
+            self.assertEqual(assertion["slots"]["accepted_definition"], "光纤连接器")
+            for stage in ("reject_a", "reject_b", "reveal_definition", "show_connection_flow"):
+                self.assertIn(stage, layer["animation_stages"])
+
+    def test_s5_connector_metaphor_requires_flow_not_floating_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。把它理解成一个光纤连接器。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
+            self.assertEqual(layer["semantic_action"], "connector_metaphor")
+            for action in ("input_flow", "through_connector", "output_flow"):
+                self.assertIn(action, layer["required_visual_actions"])
+            mutate_motion_layers(project, lambda payload: payload["layers"][0].update({"semantic_visual_proof": {"non_decorative_scene": True}}))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("labels_float_without_relationship", result.stdout)
+            self.assertIn("connector_scene_missing_flow", result.stdout)
+
+    def test_s5_metric_growth_requires_delta_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。连接规模快速增加。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
+            self.assertEqual(layer["semantic_action"], "metric_growth")
+            for action in ("bar_grow", "number_change", "direction_emphasis"):
+                self.assertIn(action, layer["animation_stages"])
+            mutate_motion_layers(project, lambda payload: payload["layers"][0]["semantic_visual_proof"].pop("has_metric_delta", None))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("metric_scene_missing_delta", result.stdout)
+
+    def test_s5_process_migration_requires_transition(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。人工对准、晶圆制造、一次做好、GlassBridge。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
+            self.assertEqual(layer["semantic_action"], "process_migration")
+            for action in ("old_path", "transition", "new_path"):
+                self.assertIn(action, layer["animation_stages"])
+            mutate_motion_layers(project, lambda payload: payload["layers"][0]["semantic_visual_proof"].pop("has_transition", None))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("process_scene_missing_transition", result.stdout)
+
+    def test_s5_density_comparison_requires_pressure_and_expansion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。FAU 要面向下一代更高密度的光。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
+            self.assertEqual(layer["semantic_action"], "density_comparison")
+            for action in ("old_limit", "requirement_pressure", "new_solution_expansion"):
+                self.assertIn(action, layer["animation_stages"])
+            mutate_motion_layers(project, lambda payload: payload["layers"][0]["semantic_visual_proof"].update({"has_pressure": False, "has_expansion": False}))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("density_scene_missing_pressure_or_expansion", result.stdout)
+
+    def test_s5_required_motion_index_missing_layer_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            mutate_motion_layers(project, lambda payload: payload.update({"layers": []}))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("required_motion_missing", result.stdout)
+            self.assertIn("required_motion_deleted_or_downgraded", result.stdout)
+
+    def test_s5_motion_layer_missing_assertion_id_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            mutate_motion_layers(project, lambda payload: payload["layers"][0].pop("motion_assertion_id", None))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("motion_assertion_missing", result.stdout)
 
     def test_s5_merges_short_adjacent_motion_beats_into_one_logic_layer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -670,7 +753,7 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             layer = payload["layers"][0]
             self.assertIn(required_ids[0], layer["covered_shot_ids"])
             self.assertIn(shots[1]["shot_id"], layer["covered_shot_ids"])
-            self.assertNotEqual(layer["logic_relation"], "before_after")
+            self.assertEqual(layer["semantic_action"], "before_after_change")
             self.assertLessEqual(layer["required_intervals"][0]["start"], shots[1]["start"])
             self.assertGreaterEqual(layer["required_intervals"][0]["end"], shots[2]["end"])
 
