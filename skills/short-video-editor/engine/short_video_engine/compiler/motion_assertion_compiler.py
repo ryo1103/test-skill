@@ -54,7 +54,9 @@ def build_required_motion_index(project_dir: Path, *, overwrite: bool = False) -
 def compile_motion_assertions(project_dir: Path) -> tuple[Path, dict[str, Any], list[dict[str, str]]]:
     index_payload = read_json(plan_dir(project_dir) / "required_motion_index.json", {})
     contract = load_contract("semantic_motion_contract.json")
+    icon_contract = load_contract("motion_icon_map.json")
     actions = contract.get("semantic_actions") if isinstance(contract.get("semantic_actions"), dict) else {}
+    semantic_icon_map = icon_contract.get("semantic_icon_map") if isinstance(icon_contract.get("semantic_icon_map"), dict) else {}
     required = index_payload.get("required_motions") if isinstance(index_payload, dict) else []
     if not isinstance(required, list):
         required = []
@@ -65,9 +67,9 @@ def compile_motion_assertions(project_dir: Path) -> tuple[Path, dict[str, Any], 
     failures: list[dict[str, str]] = []
     for index, item in enumerate([entry for entry in required if isinstance(entry, dict)], start=1):
         shot = shots_by_id.get(str(item.get("shot_id") or ""), {})
-        assertion = compile_assertion(item, shot, actions, index)
+        assertion = compile_assertion(item, shot, actions, semantic_icon_map, index)
         assertions.append(assertion)
-        missing_slots = [slot for slot in actions.get(assertion["semantic_action"], {}).get("required_slots", []) if not str(assertion["slots"].get(slot) or "").strip()]
+        missing_slots = [slot for slot in actions.get(assertion["semantic_action"], {}).get("required_slots", []) if not slot_text(assertion["slots"].get(slot))]
         if missing_slots:
             failures.append(failure("motion_slots_missing", f"{assertion['motion_assertion_id']} missing slots: {', '.join(missing_slots)}."))
         missing_actions = [action for action in actions.get(assertion["semantic_action"], {}).get("required_visual_actions", []) if action not in assertion["required_visual_actions"]]
@@ -87,12 +89,13 @@ def compile_motion_assertions(project_dir: Path) -> tuple[Path, dict[str, Any], 
     return path, payload, failures
 
 
-def compile_assertion(required_motion: dict[str, Any], shot: dict[str, Any], actions: dict[str, Any], index: int) -> dict[str, Any]:
+def compile_assertion(required_motion: dict[str, Any], shot: dict[str, Any], actions: dict[str, Any], semantic_icon_map: dict[str, Any], index: int) -> dict[str, Any]:
     text = str(required_motion.get("source_text") or shot.get("script_fragment") or "")
     entities = [str(item) for item in (shot.get("required_entities") or []) if str(item).strip()]
     semantic_action, source = infer_semantic_action(text)
     action_contract = actions.get(semantic_action, {})
-    slots = fill_slots(semantic_action, text, entities)
+    raw_slots = fill_slots(semantic_action, text, entities)
+    slots = enrich_slots_with_icons(raw_slots, semantic_action, semantic_icon_map)
     required_visual_actions = [str(item) for item in (action_contract.get("required_visual_actions") or []) if str(item).strip()]
     return {
         "motion_assertion_id": f"ma_{index:03d}",
@@ -204,17 +207,59 @@ def requirement_reason(shot: dict[str, Any]) -> str:
     return "logic_relation_requires_visual_explanation"
 
 
-def claim_for(action: str, slots: dict[str, str]) -> str:
+def enrich_slots_with_icons(slots: dict[str, str], action: str, semantic_icon_map: dict[str, Any]) -> dict[str, dict[str, str]]:
+    return {
+        key: {
+            "text": value,
+            "semantic_icon": semantic_icon_for(key, value, action, semantic_icon_map),
+        }
+        for key, value in slots.items()
+    }
+
+
+def semantic_icon_for(slot_name: str, text: str, action: str, semantic_icon_map: dict[str, Any]) -> str:
+    lowered = str(text or "").lower()
+    for key, config in semantic_icon_map.items():
+        keywords = config.get("keywords") if isinstance(config, dict) else []
+        for keyword in keywords if isinstance(keywords, list) else []:
+            if str(keyword).lower() in lowered:
+                return str(key)
+    if slot_name in {"rejected_a"}:
+        return "chip"
+    if slot_name in {"rejected_b"}:
+        return "optical_module"
+    if slot_name in {"accepted_definition", "subject", "connector", "new_solution"} and action in {"negate_and_redefine", "connector_metaphor", "density_comparison"}:
+        return "connector"
+    if slot_name in {"input"}:
+        return "input"
+    if slot_name in {"output"}:
+        return "output"
+    if slot_name in {"old_solution", "before", "old_step"}:
+        return "warning" if action in {"density_comparison", "process_migration"} else "node"
+    if slot_name in {"new_requirement"}:
+        return "warning"
+    if any(term in lowered for term in ("hbm", "dram", "ssd", "内存", "存储")):
+        return "memory"
+    return "node"
+
+
+def slot_text(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("text") or "").strip()
+    return str(value or "").strip()
+
+
+def claim_for(action: str, slots: dict[str, Any]) -> str:
     if action == "negate_and_redefine":
-        return f"{slots.get('subject')} 不是 {slots.get('rejected_a')} 或 {slots.get('rejected_b')}，而是 {slots.get('accepted_definition')}"
+        return f"{slot_text(slots.get('subject'))} 不是 {slot_text(slots.get('rejected_a'))} 或 {slot_text(slots.get('rejected_b'))}，而是 {slot_text(slots.get('accepted_definition'))}"
     if action == "connector_metaphor":
-        return f"{slots.get('input')} 通过 {slots.get('connector')} 连接到 {slots.get('output')}"
+        return f"{slot_text(slots.get('input'))} 通过 {slot_text(slots.get('connector'))} 连接到 {slot_text(slots.get('output'))}"
     if action == "metric_growth":
-        return f"{slots.get('metric')} 从 {slots.get('baseline')} 到 {slots.get('target_or_delta')}"
+        return f"{slot_text(slots.get('metric'))} 从 {slot_text(slots.get('baseline'))} 到 {slot_text(slots.get('target_or_delta'))}"
     if action == "process_migration":
-        return f"{slots.get('old_step')} 迁移到 {slots.get('new_step')}，形成 {slots.get('result')}"
+        return f"{slot_text(slots.get('old_step'))} 迁移到 {slot_text(slots.get('new_step'))}，形成 {slot_text(slots.get('result'))}"
     if action == "density_comparison":
-        return f"{slots.get('old_solution')} 面对 {slots.get('new_requirement')}，需要 {slots.get('new_solution')}"
+        return f"{slot_text(slots.get('old_solution'))} 面对 {slot_text(slots.get('new_requirement'))}，需要 {slot_text(slots.get('new_solution'))}"
     return "脚本逻辑需要可视化解释"
 
 

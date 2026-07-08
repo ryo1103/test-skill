@@ -23,6 +23,7 @@ from ...paths import output_dir, plan_dir
 from ...stage_result import current_command, failure
 from ...validators.motion_design_quality import validate_layer_quality, validate_motion_design_quality
 from ...validators.semantic_motion import validate_semantic_motion
+from ..motion_icon_resolver import resolve_motion_icons
 from .motion_canvas_adapter import prepare_motion_canvas_source, render_motion_canvas_artifact
 from .png_writer import rect_rgba, transparent, write_png_rgba
 from .registry import REQUIRED_FIELDS_BY_RELATION, TEMPLATE_BY_RELATION, TEMPLATE_CANDIDATES_BY_RELATION
@@ -319,6 +320,8 @@ def render_motion(project_dir: Path, motion_renderer: str | None = None, *, draf
         failures = []
     _assertions_path, assertions_payload, assertion_failures = compile_motion_assertions(project_dir) if not failures else (None, {"assertions": []}, [])
     failures.extend(assertion_failures)
+    _icon_manifest_path, icon_manifest, icon_failures = resolve_motion_icons(project_dir, assertions_payload) if not failures else (None, {"icons_by_assertion": {}}, [])
+    failures.extend(icon_failures)
     assertions = assertions_payload.get("assertions") if isinstance(assertions_payload, dict) else []
     assertions_by_motion = {
         str(assertion.get("motion_id") or ""): assertion
@@ -327,7 +330,7 @@ def render_motion(project_dir: Path, motion_renderer: str | None = None, *, draf
     }
     shots_by_id = {str(shot.get("shot_id") or ""): shot for shot in all_shots}
     segments = [
-        segment_for_required_motion(item, shots_by_id, all_shots, cues_by_id, index, assertions_by_motion.get(str(item.get("motion_id") or "")))
+        segment_for_required_motion(item, shots_by_id, all_shots, cues_by_id, index, assertions_by_motion.get(str(item.get("motion_id") or "")), icon_manifest)
         for index, item in enumerate([entry for entry in required_motions if isinstance(entry, dict) and entry.get("motion_required") is True], start=1)
     ]
     write_json(plan_dir(project_dir) / "logic_segments.json", {"generated_by": "short_video_engine", "engine_version": ENGINE_VERSION, "command": " ".join(current_command()), "segments": segments})
@@ -366,7 +369,7 @@ def render_motion(project_dir: Path, motion_renderer: str | None = None, *, draf
     return layers_path, report_path, failures
 
 
-def segment_for_required_motion(required_motion: dict[str, Any], shots_by_id: dict[str, dict[str, Any]], all_shots: list[dict[str, Any]], cues_by_id: dict[str, dict[str, Any]], index: int, assertion: dict[str, Any] | None) -> dict[str, Any]:
+def segment_for_required_motion(required_motion: dict[str, Any], shots_by_id: dict[str, dict[str, Any]], all_shots: list[dict[str, Any]], cues_by_id: dict[str, dict[str, Any]], index: int, assertion: dict[str, Any] | None, icon_manifest: dict[str, Any] | None = None) -> dict[str, Any]:
     shot_id = str(required_motion.get("shot_id") or "")
     shot = shots_by_id.get(shot_id, {})
     group = expand_short_group_with_context([shot], all_shots) if shot else []
@@ -392,6 +395,7 @@ def segment_for_required_motion(required_motion: dict[str, Any], shots_by_id: di
                 "claim": assertion.get("claim"),
                 "visual_claim": assertion.get("claim") or segment.get("visual_claim"),
                 "slots": slots,
+                "semantic_icons": semantic_icons_for_assertion(assertion, icon_manifest or {}),
                 "required_visual_actions": assertion.get("required_visual_actions") or [],
                 "recommended_template": assertion.get("recommended_template"),
                 "motion_text_items": semantic_motion_text_items(assertion),
@@ -403,7 +407,7 @@ def segment_for_required_motion(required_motion: dict[str, Any], shots_by_id: di
 
 def semantic_motion_text_items(assertion: dict[str, Any]) -> list[str]:
     slots = assertion.get("slots") if isinstance(assertion.get("slots"), dict) else {}
-    ordered = [str(value) for value in slots.values() if str(value).strip()]
+    ordered = [slot_text(value) for value in slots.values() if slot_text(value)]
     claim = str(assertion.get("claim") or "")
     return dedupe_labels([short_label(item, item) for item in ordered] + ([short_label(claim, "")] if claim else []))[:5]
 
@@ -412,18 +416,31 @@ def semantic_relation_fields(assertion: dict[str, Any]) -> dict[str, Any]:
     action = str(assertion.get("semantic_action") or "")
     slots = assertion.get("slots") if isinstance(assertion.get("slots"), dict) else {}
     if action == "negate_and_redefine":
-        return {"logic_relation": "not_x_but_y", "rejected_state": slots.get("rejected_a"), "pivot": "不是...而是", "accepted_state": slots.get("accepted_definition"), "final_emphasis": slots.get("subject")}
+        return {"logic_relation": "not_x_but_y", "rejected_state": slot_text(slots.get("rejected_a")), "pivot": "不是...而是", "accepted_state": slot_text(slots.get("accepted_definition")), "final_emphasis": slot_text(slots.get("subject"))}
     if action == "metric_growth":
-        return {"logic_relation": "kpi_change", "metric": slots.get("metric"), "delta": slots.get("target_or_delta")}
+        return {"logic_relation": "kpi_change", "metric": slot_text(slots.get("metric")), "delta": slot_text(slots.get("target_or_delta"))}
     if action == "process_migration":
-        return {"logic_relation": "process", "ordered_steps": [slots.get("old_step"), "transition", slots.get("new_step"), slots.get("result")]}
+        return {"logic_relation": "process", "ordered_steps": [slot_text(slots.get("old_step")), "transition", slot_text(slots.get("new_step")), slot_text(slots.get("result"))]}
     if action == "density_comparison":
-        return {"logic_relation": "comparison", "left_side": slots.get("old_solution"), "right_side": slots.get("new_solution"), "comparison_axis": slots.get("new_requirement")}
+        return {"logic_relation": "comparison", "left_side": slot_text(slots.get("old_solution")), "right_side": slot_text(slots.get("new_solution")), "comparison_axis": slot_text(slots.get("new_requirement"))}
     if action == "before_after_change":
-        return {"logic_relation": "before_after", "before_state": slots.get("before"), "after_state": slots.get("after")}
+        return {"logic_relation": "before_after", "before_state": slot_text(slots.get("before")), "after_state": slot_text(slots.get("after"))}
     if action == "cause_to_result":
-        return {"logic_relation": "cause_effect", "direction": "left_to_right", "cause": slots.get("cause"), "effect": slots.get("result")}
-    return {"logic_relation": "structure", "ordered_steps": list(slots.values())}
+        return {"logic_relation": "cause_effect", "direction": "left_to_right", "cause": slot_text(slots.get("cause")), "effect": slot_text(slots.get("result"))}
+    return {"logic_relation": "structure", "ordered_steps": [slot_text(value) for value in slots.values() if slot_text(value)]}
+
+
+def semantic_icons_for_assertion(assertion: dict[str, Any], icon_manifest: dict[str, Any]) -> dict[str, Any]:
+    assertion_id = str(assertion.get("motion_assertion_id") or "")
+    icons_by_assertion = icon_manifest.get("icons_by_assertion") if isinstance(icon_manifest, dict) else {}
+    icons = icons_by_assertion.get(assertion_id) if isinstance(icons_by_assertion, dict) else {}
+    return icons if isinstance(icons, dict) else {}
+
+
+def slot_text(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("text") or "").strip()
+    return str(value or "").strip()
 
 
 def dedupe_failures(items: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -720,6 +737,7 @@ def semantic_layer_fields(segment: dict[str, Any]) -> dict[str, Any]:
         "semantic_action": action,
         "claim": segment.get("claim") or segment.get("visual_claim"),
         "slots": segment.get("slots") if isinstance(segment.get("slots"), dict) else {},
+        "semantic_icons": segment.get("semantic_icons") if isinstance(segment.get("semantic_icons"), dict) else {},
         "required_visual_actions": required_actions,
         "visual_action_evidence": {stage: {"status": "rendered", "evidence_stage": stage} for stage in required_actions},
         "semantic_visual_proof": semantic_visual_proof_for(action),

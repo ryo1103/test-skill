@@ -1,0 +1,46 @@
+{
+  "generated_by": "short_video_engine",
+  "contract_id": "motion_icon_map_v1",
+  "semantic_icon_map": {
+    "chip": {
+      "keywords": ["芯片", "chip", "processor"],
+      "role": "device_category",
+      "fallback_symbol": "chip"
+    },
+    "optical_module": {
+      "keywords": ["光模块", "optical module", "transceiver"],
+      "role": "module_category",
+      "fallback_symbol": "module"
+    },
+    "connector": {
+      "keywords": ["连接器", "光纤连接器", "GlassBridge", "桥"],
+      "role": "accepted_definition",
+      "fallback_symbol": "connector"
+    },
+    "input": {
+      "keywords": ["输入", "input"],
+      "role": "flow_endpoint",
+      "fallback_symbol": "input_port"
+    },
+    "output": {
+      "keywords": ["输出", "output"],
+      "role": "flow_endpoint",
+      "fallback_symbol": "output_port"
+    },
+    "node": {
+      "keywords": ["节点", "node"],
+      "role": "network_node",
+      "fallback_symbol": "node"
+    },
+    "memory": {
+      "keywords": ["HBM", "DRAM", "SSD", "内存", "存储"],
+      "role": "memory_storage",
+      "fallback_symbol": "memory"
+    },
+    "warning": {
+      "keywords": ["错误", "缺乏", "无法", "瓶颈"],
+      "role": "status_warning",
+      "fallback_symbol": "warning"
+    }
+  }
+}

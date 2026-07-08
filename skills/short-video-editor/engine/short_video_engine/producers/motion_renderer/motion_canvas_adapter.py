@@ -357,6 +357,7 @@ def motion_canvas_props(segment: dict[str, Any], template: str, expression_plan:
         "visual_claim": segment.get("visual_claim"),
         "motion_text_items": segment.get("motion_text_items") or [],
         "logic_entities": segment.get("logic_entities") or [],
+        "semantic_icons": segment.get("semantic_icons") or {},
         "expression_plan": expression_plan,
         "canvas": {"width": width, "height": height, "frame_count": frame_count, "background": "transparent"},
         "relation_fields": {

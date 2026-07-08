@@ -13,6 +13,7 @@ def validate_semantic_motion(project_dir: Path) -> list[dict[str, str]]:
     index_payload = read_json(plan_dir(project_dir) / "required_motion_index.json", {})
     assertions_payload = read_json(plan_dir(project_dir) / "motion_assertions.json", {})
     layers_payload = read_json(plan_dir(project_dir) / "motion_layers.json", {})
+    motion_assets_payload = read_json(plan_dir(project_dir) / "motion_asset_manifest.json", {})
     contract = load_contract("semantic_motion_contract.json")
     actions = contract.get("semantic_actions") if isinstance(contract.get("semantic_actions"), dict) else {}
     required = index_payload.get("required_motions") if isinstance(index_payload, dict) else None
@@ -32,6 +33,7 @@ def validate_semantic_motion(project_dir: Path) -> list[dict[str, str]]:
     for layer in layers:
         if isinstance(layer, dict):
             layer_by_motion.setdefault(str(layer.get("motion_id") or ""), []).append(layer)
+    failures.extend(validate_motion_icons_not_in_broll_manifest(project_dir))
     for item in required:
         if not isinstance(item, dict) or item.get("motion_required") is not True:
             continue
@@ -44,7 +46,7 @@ def validate_semantic_motion(project_dir: Path) -> list[dict[str, str]]:
             failures.append(failure("required_motion_deleted_or_downgraded", f"{motion_id} appears to have been deleted or downgraded after the S2 required motion lock."))
             continue
         for layer in motion_layers:
-            failures.extend(validate_semantic_layer(layer, assertion_by_id, actions))
+            failures.extend(validate_semantic_layer(layer, assertion_by_id, actions, motion_assets_payload))
     required_ids = {str(item.get("motion_id") or "") for item in required if isinstance(item, dict) and item.get("motion_required") is True}
     for motion_id in required_ids:
         if not motion_id:
@@ -56,7 +58,7 @@ def validate_semantic_motion(project_dir: Path) -> list[dict[str, str]]:
     return failures
 
 
-def validate_semantic_layer(layer: dict[str, Any], assertion_by_id: dict[str, dict[str, Any]], actions: dict[str, Any]) -> list[dict[str, str]]:
+def validate_semantic_layer(layer: dict[str, Any], assertion_by_id: dict[str, dict[str, Any]], actions: dict[str, Any], motion_assets_payload: dict[str, Any]) -> list[dict[str, str]]:
     failures: list[dict[str, str]] = []
     assertion_id = str(layer.get("motion_assertion_id") or "")
     if not assertion_id:
@@ -70,9 +72,10 @@ def validate_semantic_layer(layer: dict[str, Any], assertion_by_id: dict[str, di
         failures.append(failure("motion_semantic_invalid", f"Unsupported semantic_action {semantic_action}."))
         return failures
     slots = layer.get("slots") if isinstance(layer.get("slots"), dict) else assertion.get("slots") if isinstance(assertion.get("slots"), dict) else {}
-    missing_slots = [slot for slot in action_contract.get("required_slots", []) if not str(slots.get(slot) or "").strip()]
+    missing_slots = [slot for slot in action_contract.get("required_slots", []) if not slot_text(slots.get(slot))]
     if missing_slots:
         failures.append(failure("motion_slots_missing", f"{assertion_id} missing slots: {', '.join(missing_slots)}."))
+    failures.extend(validate_motion_icons(assertion_id, action_contract, slots, layer, motion_assets_payload))
     required_actions = [str(item) for item in action_contract.get("required_visual_actions", []) if str(item).strip()]
     assertion_actions = [str(item) for item in assertion.get("required_visual_actions", []) if str(item).strip()]
     layer_actions = [str(item) for item in layer.get("required_visual_actions", []) if str(item).strip()]
@@ -89,6 +92,55 @@ def validate_semantic_layer(layer: dict[str, Any], assertion_by_id: dict[str, di
         failures.append(failure("labels_float_without_relationship", f"{assertion_id} lacks relationship flow; labels cannot float without structure."))
     failures.extend(action_specific_failures(assertion_id, semantic_action, proof))
     return failures
+
+
+def validate_motion_icons(assertion_id: str, action_contract: dict[str, Any], slots: dict[str, Any], layer: dict[str, Any], motion_assets_payload: dict[str, Any]) -> list[dict[str, str]]:
+    failures: list[dict[str, str]] = []
+    assets = motion_assets_payload.get("assets") if isinstance(motion_assets_payload, dict) else []
+    asset_by_id = {str(asset.get("asset_id") or ""): asset for asset in assets if isinstance(asset, dict)}
+    semantic_keys = {str(asset.get("semantic_key") or "") for asset in assets if isinstance(asset, dict)}
+    layer_icons = layer.get("semantic_icons") if isinstance(layer.get("semantic_icons"), dict) else {}
+    for slot_name in action_contract.get("required_slots", []):
+        slot = slots.get(slot_name)
+        semantic_icon = slot_icon(slot)
+        if not semantic_icon:
+            failures.append(failure("motion_icon_missing", f"{assertion_id} slot {slot_name} has no semantic_icon."))
+            continue
+        layer_icon = layer_icons.get(slot_name) if isinstance(layer_icons, dict) else None
+        asset_id = str(layer_icon.get("asset_id") or "") if isinstance(layer_icon, dict) else ""
+        if not asset_id or asset_id not in asset_by_id or semantic_icon not in semantic_keys:
+            failures.append(failure("motion_icon_missing", f"{assertion_id} slot {slot_name} semantic_icon {semantic_icon} is not resolved in motion_asset_manifest.json."))
+            continue
+        asset = asset_by_id[asset_id]
+        local_path = Path(str(asset.get("local_path") or ""))
+        if not local_path.exists() or str(asset.get("usage") or "") != "motion_overlay_icon":
+            failures.append(failure("motion_icon_missing", f"{assertion_id} slot {slot_name} resolved icon asset is missing or has invalid usage."))
+    return failures
+
+
+def validate_motion_icons_not_in_broll_manifest(project_dir: Path) -> list[dict[str, str]]:
+    payload = read_json(project_dir / "assets" / "metadata" / "asset_manifest.json", {})
+    records = (payload.get("assets") or payload.get("records") or []) if isinstance(payload, dict) else payload if isinstance(payload, list) else []
+    failures: list[dict[str, str]] = []
+    for record in records if isinstance(records, list) else []:
+        if not isinstance(record, dict):
+            continue
+        if str(record.get("usage") or "") == "motion_overlay_icon" or str(record.get("asset_key") or "").startswith("motion_icon_"):
+            failures.append(failure("motion_icon_in_broll_asset_manifest", "Motion overlay icons must not be written to the S3 B-roll asset_manifest."))
+            break
+    return failures
+
+
+def slot_text(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("text") or "").strip()
+    return str(value or "").strip()
+
+
+def slot_icon(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("semantic_icon") or "").strip()
+    return ""
 
 
 def action_specific_failures(assertion_id: str, semantic_action: str, proof: dict[str, Any]) -> list[dict[str, str]]:

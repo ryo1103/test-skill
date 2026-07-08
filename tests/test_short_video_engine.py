@@ -654,10 +654,16 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             assertion = read_json(project / "work" / "plan" / "motion_assertions.json")["assertions"][0]
             layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
             self.assertEqual(assertion["semantic_action"], "negate_and_redefine")
-            self.assertEqual(assertion["slots"]["subject"], "GlassBridge")
-            self.assertEqual(assertion["slots"]["rejected_a"], "芯片")
-            self.assertEqual(assertion["slots"]["rejected_b"], "光模块")
-            self.assertEqual(assertion["slots"]["accepted_definition"], "光纤连接器")
+            self.assertEqual(assertion["slots"]["subject"]["text"], "GlassBridge")
+            self.assertEqual(assertion["slots"]["rejected_a"]["text"], "芯片")
+            self.assertEqual(assertion["slots"]["rejected_b"]["text"], "光模块")
+            self.assertEqual(assertion["slots"]["accepted_definition"]["text"], "光纤连接器")
+            self.assertEqual(assertion["slots"]["rejected_a"]["semantic_icon"], "chip")
+            self.assertEqual(assertion["slots"]["rejected_b"]["semantic_icon"], "optical_module")
+            self.assertEqual(assertion["slots"]["accepted_definition"]["semantic_icon"], "connector")
+            self.assertEqual(layer["semantic_icons"]["rejected_a"]["semantic_key"], "chip")
+            self.assertEqual(layer["semantic_icons"]["rejected_b"]["semantic_key"], "optical_module")
+            self.assertEqual(layer["semantic_icons"]["accepted_definition"]["semantic_key"], "connector")
             for stage in ("reject_a", "reject_b", "reveal_definition", "show_connection_flow"):
                 self.assertIn(stage, layer["animation_stages"])
 
@@ -668,6 +674,9 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
             layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
             self.assertEqual(layer["semantic_action"], "connector_metaphor")
+            self.assertEqual(layer["semantic_icons"]["input"]["semantic_key"], "input")
+            self.assertEqual(layer["semantic_icons"]["connector"]["semantic_key"], "connector")
+            self.assertEqual(layer["semantic_icons"]["output"]["semantic_key"], "output")
             for action in ("input_flow", "through_connector", "output_flow"):
                 self.assertIn(action, layer["required_visual_actions"])
             mutate_motion_layers(project, lambda payload: payload["layers"][0].update({"semantic_visual_proof": {"non_decorative_scene": True}}))
@@ -738,6 +747,32 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("motion_assertion_missing", result.stdout)
+
+    def test_s5_missing_icon_file_uses_fallback_symbol(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。GlassBridge它不是一颗芯片，也不是新的光模块，而是一个光纤连接器。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            manifest = read_json(project / "work" / "plan" / "motion_asset_manifest.json")
+            sources = {asset["semantic_key"]: asset["source"] for asset in manifest["assets"]}
+            self.assertEqual(sources["chip"], "bundled_fallback")
+            self.assertEqual(sources["optical_module"], "bundled_fallback")
+            self.assertEqual(sources["connector"], "bundled_fallback")
+            for asset in manifest["assets"]:
+                self.assertEqual(asset["usage"], "motion_overlay_icon")
+                self.assertTrue(Path(asset["local_path"]).exists())
+            layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
+            self.assertEqual(layer["renderer_backend"], "motion_canvas_sequence")
+
+    def test_s5_motion_icon_written_to_broll_manifest_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            write_asset_manifest(project, [{"asset_key": "motion_icon_chip", "usage": "motion_overlay_icon", "path": "fake.svg"}])
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("motion_icon_in_broll_asset_manifest", result.stdout)
 
     def test_s5_merges_short_adjacent_motion_beats_into_one_logic_layer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -158,8 +158,8 @@ def metrics_for_template(template: str, segment: dict[str, Any], labels: list[st
     if template == "metric_growth_scene":
         slots = segment.get("slots") if isinstance(segment.get("slots"), dict) else {}
         return [
-            {"id": "baseline", "label": str(slots.get("baseline") or "基准"), "value": "baseline"},
-            {"id": "delta", "label": str(slots.get("target_or_delta") or "增长"), "value": "delta"},
+            {"id": "baseline", "label": slot_text(slots.get("baseline")) or "基准", "value": "baseline"},
+            {"id": "delta", "label": slot_text(slots.get("target_or_delta")) or "增长", "value": "delta"},
         ]
     if template == "density_pressure_scene":
         return [{"id": "pressure", "label": "密度压力", "value": "expansion_required"}]
@@ -244,7 +244,13 @@ def semantic_labels(segment: dict[str, Any]) -> list[str]:
         "cause_to_result": ["cause", "mechanism", "result"],
         "before_after_change": ["before", "transition", "after"],
     }
-    return [str(slots.get(key)) for key in orders.get(action, []) if str(slots.get(key) or "").strip()]
+    return [slot_text(slots.get(key)) for key in orders.get(action, []) if slot_text(slots.get(key))]
+
+
+def slot_text(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("text") or "").strip()
+    return str(value or "").strip()
 
 
 def subtitle_summary(subtitle_layout: dict[str, Any], segment: dict[str, Any]) -> dict[str, Any]:
