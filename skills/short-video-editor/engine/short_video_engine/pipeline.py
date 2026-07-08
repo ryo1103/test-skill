@@ -205,6 +205,7 @@ def validate_stage(project_dir: Path, stage: str, draft_ok: bool = False) -> Sta
         failures.extend(audit_output_duration(project_dir, output_dir(project_dir) / "base_plate.mp4", rows))
     if stage == "S5_motion_overlay" and status == PASS and not failures:
         from .producers.motion_renderer.renderer import validate_layer
+        from .validators.motion_design_quality import validate_motion_design_quality
 
         payload = read_json(plan_dir(project_dir) / "motion_layers.json", {})
         layers = payload.get("layers") if isinstance(payload, dict) else []
@@ -227,6 +228,7 @@ def validate_stage(project_dir: Path, stage: str, draft_ok: bool = False) -> Sta
         for layer in layers:
             if isinstance(layer, dict):
                 failures.extend(validate_layer(layer, project_dir))
+        failures.extend(validate_motion_design_quality(project_dir, strict=not draft_ok, allow_pillow_professional=False))
     if stage == "S6_text_layout" and status == PASS and not failures:
         from .producers.text_overlay_renderer import validate_text_layout
 

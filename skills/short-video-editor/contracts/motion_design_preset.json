@@ -1,0 +1,63 @@
+{
+  "generated_by": "short_video_engine",
+  "preset_id": "tech_hud_graphic_package_v1",
+  "palette": {
+    "background": "#02070B",
+    "panel": "rgba(7,18,28,0.72)",
+    "panel_edge": "#6EEBFF",
+    "accent_primary": "#72EBCB",
+    "accent_secondary": "#F8D34D",
+    "danger": "#FF5C7A",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#B8CCD7"
+  },
+  "glass_material": {
+    "opacity": 0.72,
+    "edge_opacity": 0.82,
+    "corner_radius_px": 22,
+    "inner_highlight_opacity": 0.16,
+    "noise_opacity": 0.03
+  },
+  "glow_shadow_blur": {
+    "primary_glow_px": 18,
+    "secondary_glow_px": 8,
+    "shadow_px": 24,
+    "backdrop_blur_px": 16
+  },
+  "typography_scale": {
+    "primary_title_px": 56,
+    "metric_px": 48,
+    "label_px": 32,
+    "micro_px": 22,
+    "font_family": "PingFang SC, Inter, system-ui"
+  },
+  "icon_style": {
+    "stroke_width_px": 3,
+    "corner_radius_px": 6,
+    "style": "monoline_hud",
+    "allowed": ["chip", "node", "meter", "rail", "split", "terminal", "lens", "connector"]
+  },
+  "background_treatment": {
+    "default": "transparent_overlay_with_scan_grid_and_depth_scrim",
+    "safe_regions": {
+      "title_reserved_y2": 420,
+      "subtitle_reserved_y1": 1480
+    }
+  },
+  "animation_timing": {
+    "duration_sec": 1.8,
+    "easing": "cubic-bezier(0.16,1,0.3,1)",
+    "stagger_sec": 0.08,
+    "stages": ["start", "build", "peak", "settle", "end"]
+  },
+  "allowed_professional_templates": [
+    "chip_node_network",
+    "tech_hud_concept_card",
+    "kpi_dual_meter_panel",
+    "process_milestone_rail",
+    "comparison_split_glass",
+    "not_x_but_y_pivot_panel",
+    "system_error_terminal",
+    "callout_lens_overlay"
+  ]
+}

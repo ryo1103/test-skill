@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from ... import ENGINE_VERSION
-from ...paths import plan_dir
+from ...paths import output_dir, plan_dir
+from .png_writer import rect_rgba, transparent, write_png_rgba
 
 
 def prepare_motion_canvas_source(project_dir: Path, segment: dict[str, Any], template: str, expression_plan: dict[str, Any], width: int, height: int, frame_count: int) -> dict[str, Any]:
@@ -44,6 +47,176 @@ def prepare_motion_canvas_source(project_dir: Path, segment: dict[str, Any], tem
         "motion_source_note": "Source handoff only; S5 PASS still requires rendered transparent PNG sequence evidence.",
         "suggested_render_command": "npm install && npm run render",
     }
+
+
+def render_motion_canvas_artifact(
+    project_dir: Path,
+    segment: dict[str, Any],
+    scene: dict[str, Any],
+    template: str,
+    expression_plan: dict[str, Any],
+    width: int,
+    height: int,
+    frame_count: int,
+    *,
+    allow_internal_test_renderer: bool = False,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    source_info = prepare_motion_canvas_source(project_dir, segment, template, expression_plan, width, height, frame_count)
+    source_dir = Path(str(source_info["motion_source_project_dir"]))
+    frame_dir = output_dir(project_dir) / "qc" / "motion_canvas_frames" / str(scene.get("scene_id") or segment.get("logic_segment_id") or segment.get("shot_id") or "scene")
+    if frame_dir.exists():
+        for path in frame_dir.glob("*.png"):
+            path.unlink()
+    frame_dir.mkdir(parents=True, exist_ok=True)
+    node = shutil.which("node")
+    npm = shutil.which("npm")
+    render_log: list[dict[str, Any]] = []
+    if allow_internal_test_renderer:
+        frames = render_internal_motion_canvas_sequence(frame_dir, scene, width, height, frame_count)
+        return motion_canvas_result(source_info, frame_dir, frames, "internal_test_motion_canvas_sequence", render_log), []
+    if not node or not npm:
+        return source_info | {"production_render_status": "unavailable", "production_render_reason": "node_or_npm_missing"}, [
+            {"code": "motion_canvas_runtime_unavailable", "message": "Node/npm are required for strict Motion Canvas production rendering."}
+        ]
+    if os.environ.get("SVIDEO_SKIP_NPM_MOTION_RENDER") == "1":
+        return source_info | {"production_render_status": "skipped"}, [
+            {"code": "motion_canvas_render_skipped", "message": "Motion Canvas production render was explicitly skipped."}
+        ]
+    commands = [["npm", "install"], ["npm", "run", "render"]]
+    for command in commands:
+        try:
+            completed = subprocess.run(command, cwd=source_dir, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=int(os.environ.get("SVIDEO_MOTION_CANVAS_TIMEOUT", "120")))
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return source_info | {"production_render_status": "failed", "production_render_log": render_log}, [
+                {"code": "motion_canvas_render_failed", "message": f"Motion Canvas command failed: {exc}"}
+            ]
+        render_log.append({"command": " ".join(command), "returncode": completed.returncode, "stdout_tail": completed.stdout[-1200:], "stderr_tail": completed.stderr[-1200:]})
+        if completed.returncode != 0:
+            return source_info | {"production_render_status": "failed", "production_render_log": render_log}, [
+                {"code": "motion_canvas_render_failed", "message": "Motion Canvas production render command returned non-zero status."}
+            ]
+    rendered_frames = collect_rendered_frames(source_dir)
+    if not rendered_frames:
+        return source_info | {"production_render_status": "failed", "production_render_log": render_log}, [
+            {"code": "motion_canvas_render_no_frames", "message": "Motion Canvas render completed but no transparent PNG sequence was found."}
+        ]
+    copied = []
+    for index, frame in enumerate(rendered_frames[:frame_count]):
+        target = frame_dir / f"frame_{index:03d}.png"
+        shutil.copyfile(frame, target)
+        copied.append(target)
+    return motion_canvas_result(source_info, frame_dir, copied, "npm_motion_canvas_sequence", render_log), []
+
+
+def motion_canvas_result(source_info: dict[str, Any], frame_dir: Path, frames: list[Path], status: str, render_log: list[dict[str, Any]]) -> dict[str, Any]:
+    evidence = frame_evidence(frames)
+    return source_info | {
+        "production_render_status": status,
+        "production_render_log": render_log,
+        "renderer_backend": "motion_canvas_sequence",
+        "artifact_renderer_backend": "motion_canvas_sequence",
+        "layer_type": "png_sequence",
+        "png_sequence_dir": str(frame_dir),
+        "sequence_frame_count": len(frames),
+        "frame_evidence": {key: str(value) for key, value in evidence.items()},
+    }
+
+
+def frame_evidence(frames: list[Path]) -> dict[str, Path]:
+    if not frames:
+        return {}
+    last = len(frames) - 1
+    indexes = {
+        "start": 0,
+        "build": max(0, int(last * 0.24)),
+        "mid": max(0, int(last * 0.52)),
+        "peak": max(0, int(last * 0.52)),
+        "settle": max(0, int(last * 0.78)),
+        "end": last,
+    }
+    return {key: frames[index] for key, index in indexes.items()}
+
+
+def collect_rendered_frames(source_dir: Path) -> list[Path]:
+    candidates = []
+    for root in (source_dir / "dist", source_dir / "output", source_dir):
+        if root.exists():
+            candidates.extend(sorted(root.rglob("*.png")))
+    return [path for path in candidates if path.is_file()]
+
+
+def render_internal_motion_canvas_sequence(frame_dir: Path, scene: dict[str, Any], width: int, height: int, frame_count: int) -> list[Path]:
+    template = str(scene.get("scene_template") or "tech_hud_concept_card")
+    frames: list[Path] = []
+    for index in range(frame_count):
+        progress = index / max(frame_count - 1, 1)
+        eased = progress * progress * (3 - 2 * progress)
+        pixels = transparent(width, height)
+        draw_hud_frame(pixels, width, height, template, eased, index)
+        path = frame_dir / f"frame_{index:03d}.png"
+        write_png_rgba(path, width, height, pixels)
+        frames.append(path)
+    return frames
+
+
+def draw_hud_frame(pixels: bytearray, width: int, height: int, template: str, progress: float, index: int) -> None:
+    safe_top = 420
+    panel_x, panel_y, panel_w, panel_h = 120, 710, 840, 520
+    glow = int(80 + 80 * progress)
+    rect_rgba(pixels, width, height, 86, 392, 908, 1010, (4, 12, 20, 34))
+    rect_rgba(pixels, width, height, panel_x, panel_y, panel_w, panel_h, (7, 18, 28, 150))
+    rect_rgba(pixels, width, height, panel_x, panel_y, int(panel_w * progress), 4, (110, 235, 255, 210))
+    rect_rgba(pixels, width, height, panel_x, panel_y + panel_h - 4, int(panel_w * min(progress + 0.1, 1)), 4, (114, 235, 203, 190))
+    rect_rgba(pixels, width, height, 210, safe_top + 90, int(660 * min(progress * 1.3, 1)), 82, (2, 7, 12, 178))
+    rect_rgba(pixels, width, height, 238, safe_top + 116, int(410 * min(progress * 1.5, 1)), 18, (255, 255, 255, 235))
+    if template == "chip_node_network":
+        draw_network(pixels, width, height, progress, glow)
+    elif template == "system_error_terminal":
+        draw_terminal(pixels, width, height, progress, index)
+    elif template == "kpi_dual_meter_panel":
+        draw_meters(pixels, width, height, progress)
+    elif template == "process_milestone_rail":
+        draw_rail(pixels, width, height, progress)
+    else:
+        draw_network(pixels, width, height, progress, glow)
+
+
+def draw_network(pixels: bytearray, width: int, height: int, progress: float, glow: int) -> None:
+    nodes = [(260, 900), (460, 820), (650, 980), (820, 870)]
+    for idx, (x, y) in enumerate(nodes):
+        local = max(0.0, min(1.0, progress * 4 - idx * 0.55))
+        size = int(46 + 34 * local)
+        rect_rgba(pixels, width, height, x - size // 2, y - size // 2, size, size, (12, 36, 54, int(90 + 115 * local)))
+        rect_rgba(pixels, width, height, x - 7, y - 7, 14, 14, (114, 235, 203, int(glow * local)))
+        if idx:
+            px, py = nodes[idx - 1]
+            line_w = int((x - px) * local)
+            line_h = int((y - py) * local)
+            rect_rgba(pixels, width, height, min(px, px + line_w), min(py, py + line_h), max(abs(line_w), 8), 8, (248, 211, 77, int(170 * local)))
+
+
+def draw_terminal(pixels: bytearray, width: int, height: int, progress: float, index: int) -> None:
+    rows = int(6 * progress)
+    for row in range(rows):
+        y = 810 + row * 56
+        color = (255, 92, 122, 210) if row < 2 and index % 6 < 3 else (114, 235, 203, 190)
+        rect_rgba(pixels, width, height, 210, y, 600 - row * 34, 22, color)
+    rect_rgba(pixels, width, height, 210, 1130, int(600 * progress), 18, (248, 211, 77, 230))
+
+
+def draw_meters(pixels: bytearray, width: int, height: int, progress: float) -> None:
+    rect_rgba(pixels, width, height, 250, 850, 580, 36, (255, 255, 255, 42))
+    rect_rgba(pixels, width, height, 250, 850, int(520 * progress), 36, (114, 235, 203, 224))
+    rect_rgba(pixels, width, height, 250, 1010, 580, 36, (255, 255, 255, 42))
+    rect_rgba(pixels, width, height, 250, 1010, int(440 * progress), 36, (248, 211, 77, 224))
+
+
+def draw_rail(pixels: bytearray, width: int, height: int, progress: float) -> None:
+    rect_rgba(pixels, width, height, 210, 980, 660, 10, (255, 255, 255, 60))
+    rect_rgba(pixels, width, height, 210, 980, int(660 * progress), 10, (248, 211, 77, 220))
+    for idx, x in enumerate([230, 430, 630, 830]):
+        local = max(0.0, min(1.0, progress * 4 - idx * 0.5))
+        rect_rgba(pixels, width, height, x - 32, 930, 64, 100, (12, 36, 54, int(80 + 120 * local)))
 
 
 def motion_canvas_props(segment: dict[str, Any], template: str, expression_plan: dict[str, Any], width: int, height: int, frame_count: int) -> dict[str, Any]:

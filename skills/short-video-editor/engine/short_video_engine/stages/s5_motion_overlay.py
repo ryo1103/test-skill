@@ -5,7 +5,7 @@ from pathlib import Path
 from ..contracts import read_json, write_json
 from ..paths import plan_dir
 from ..producers.motion_renderer.renderer import render_motion
-from ..stage_result import FINAL_BLOCKED, PASS, StageResult, current_command
+from ..stage_result import DRAFT_ONLY, FINAL_BLOCKED, PASS, StageResult, current_command
 
 
 def run(project_dir: Path, **options: object) -> StageResult:
@@ -16,6 +16,7 @@ def run(project_dir: Path, **options: object) -> StageResult:
         report_path = plan_dir(project_dir) / "motion_overlay_report.json"
         write_json(report_path, {"generated_by": "short_video_engine", "status": PASS, "motion_required": False})
         return StageResult("S5_motion_overlay", PASS, "s5_motion_overlay", current_command(), outputs=[report_path])
-    layers_path, report_path, failures = render_motion(project_dir, motion_renderer=str(options.get("motion_renderer") or "auto"))
-    status = PASS if not failures else FINAL_BLOCKED
+    draft_ok = bool(options.get("draft_ok"))
+    layers_path, report_path, failures = render_motion(project_dir, motion_renderer=str(options.get("motion_renderer") or "auto"), draft_ok=draft_ok)
+    status = PASS if not failures else (DRAFT_ONLY if draft_ok else FINAL_BLOCKED)
     return StageResult("S5_motion_overlay", status, "s5_motion_overlay", current_command(), failures=failures, outputs=[layers_path, report_path])

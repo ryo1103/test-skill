@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import csv
+import os
 import shutil
 import subprocess
 import sys
@@ -18,7 +19,9 @@ sys.path.insert(0, str(SKILL_ROOT / "engine"))
 
 
 def run_cmd(args: list[str], check: bool = False) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run([sys.executable, *args], cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    env = os.environ.copy()
+    env.setdefault("SVIDEO_ALLOW_INTERNAL_MOTION_CANVAS_TEST_RENDERER", "1")
+    result = subprocess.run([sys.executable, *args], cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     if check and result.returncode != 0:
         raise AssertionError(f"command failed: {result.args}\nstdout={result.stdout}\nstderr={result.stderr}")
     return result
@@ -159,6 +162,13 @@ def prepare_s5_project(project: Path, script: str = "开场介绍一句。不是
 
 def mutate_motion_layers(project: Path, mutator) -> None:
     path = project / "work" / "plan" / "motion_layers.json"
+    payload = read_json(path)
+    mutator(payload)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def mutate_graphic_scene_plan(project: Path, mutator) -> None:
+    path = project / "work" / "plan" / "graphic_scene_plan.json"
     payload = read_json(path)
     mutator(payload)
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -529,7 +539,10 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             self.assertIn("效率问题", layer["motion_text_items"])
             self.assertEqual(layer["motion_source_engine"], "motion_canvas")
             self.assertEqual(layer["motion_source_status"], "prepared")
-            self.assertEqual(layer["renderer_backend"], "pillow_sequence")
+            self.assertEqual(layer["renderer_backend"], "motion_canvas_sequence")
+            self.assertEqual(layer["professional_quality_status"], "passed")
+            self.assertTrue(layer["motion_design_preset_applied"])
+            self.assertIn("graphic_scene_id", layer)
             self.assertIn("motion_layout_boxes", layer)
             self.assertIn("title_reserved", layer["motion_layout_boxes"])
             self.assertIn("subtitle_reserved", layer["motion_layout_boxes"])
@@ -541,8 +554,9 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             self.assertTrue(Path(layer["motion_source_project_dir"]).is_dir())
             self.assertTrue((Path(layer["motion_source_project_dir"]) / "motion-props.json").exists())
             self.assertEqual(png_color_type(Path(layer["frame_evidence"]["mid"])), 6)
-            frame_hashes = {Path(layer["frame_evidence"][key]).read_bytes() for key in ("start", "mid", "end")}
-            self.assertEqual(len(frame_hashes), 3)
+            self.assertTrue((project / "work" / "plan" / "graphic_scene_plan.json").exists())
+            frame_hashes = {Path(layer["frame_evidence"][key]).read_bytes() for key in ("start", "build", "peak", "settle", "end")}
+            self.assertGreaterEqual(len(frame_hashes), 4)
 
     def test_s5_no_pillow_does_not_generate_placeholder_motion(self) -> None:
         from short_video_engine.producers.motion_renderer import renderer
@@ -555,12 +569,92 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             renderer.ImageDraw = None
             renderer.ImageFont = None
             try:
-                _layers_path, _report_path, failures = renderer.render_motion(project)
+                _layers_path, _report_path, failures = renderer.render_motion(project, motion_renderer="pillow")
             finally:
                 renderer.Image, renderer.ImageDraw, renderer.ImageFont = original
             codes = {item["code"] for item in failures}
             self.assertIn("motion_text_renderer_unavailable", codes)
             self.assertIn("motion_placeholder_renderer_forbidden", codes)
+
+    def test_s5_motion_canvas_source_only_cannot_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            mutate_motion_layers(project, lambda payload: payload["layers"][0].update({"renderer_backend": "motion_canvas_source", "artifact_renderer_backend": "motion_canvas_source", "layer_type": "source_project", "frame_evidence": {}}))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("motion_source_only_not_evidence", result.stdout)
+
+    def test_s5_pillow_fallback_cannot_pass_strict_professional_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            mutate_motion_layers(project, lambda payload: payload["layers"][0].update({"renderer_backend": "pillow_sequence", "artifact_renderer_backend": "pillow_sequence", "professional_quality_status": "passed"}))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("motion_professional_renderer_required", result.stdout)
+
+    def test_s5_graphic_scene_plan_missing_scene_template_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            mutate_graphic_scene_plan(project, lambda payload: payload["scenes"][0].pop("scene_template", None))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("missing_scene_template", result.stdout)
+
+    def test_s5_large_empty_panel_fails_motion_design_quality(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            mutate_graphic_scene_plan(project, lambda payload: payload["scenes"][0]["quality_target"].update({"no_large_empty_panel": False}))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("large_empty_panel_detected", result.stdout)
+
+    def test_s5_missing_stagger_fails_motion_design_quality(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+
+            def remove_stagger(payload):
+                for stage in payload["scenes"][0]["animation_sequence"]:
+                    stage["stagger_sec"] = 0
+
+            mutate_graphic_scene_plan(project, remove_stagger)
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("missing_motion_stagger", result.stdout)
+
+    def test_s5_system_error_and_chip_network_generate_professional_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            error_project = Path(tmp) / "error_project"
+            chip_project = Path(tmp) / "chip_project"
+            prepare_s5_project(error_project, script="开场介绍一句。这个错误会导致系统失败需要马上修正。最后总结观点。")
+            prepare_s5_project(chip_project, script="开场介绍一句。GlassBridge把芯片和光纤连接成节点网络。最后总结观点。")
+            mutate_json(
+                chip_project / "work" / "plan" / "shot_plan.json",
+                lambda payload: payload["shots"][0].update(
+                    {
+                        "motion_overlay_required": True,
+                        "logic_relation": "structure",
+                        "logic_relation_reason": {"reason": "explicit_chip_network_test"},
+                    }
+                ),
+            )
+            for project, expected in ((error_project, "system_error_terminal"), (chip_project, "chip_node_network")):
+                run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+                scene = read_json(project / "work" / "plan" / "graphic_scene_plan.json")["scenes"][0]
+                layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
+                self.assertEqual(scene["scene_template"], expected)
+                self.assertEqual(layer["renderer_backend"], "motion_canvas_sequence")
+                for key in ("start", "build", "peak", "settle", "end"):
+                    self.assertTrue(Path(layer["frame_evidence"][key]).exists())
 
     def test_s5_merges_short_adjacent_motion_beats_into_one_logic_layer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

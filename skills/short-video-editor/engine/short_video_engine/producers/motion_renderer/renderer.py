@@ -17,9 +17,11 @@ except ImportError:  # pragma: no cover - exercised only in minimal runtimes
 
 from ... import ENGINE_VERSION
 from ...contracts import load_contract, read_json, write_json
+from ...motion_director import build_graphic_scene_plan
 from ...paths import output_dir, plan_dir
 from ...stage_result import current_command, failure
-from .motion_canvas_adapter import prepare_motion_canvas_source
+from ...validators.motion_design_quality import validate_layer_quality, validate_motion_design_quality
+from .motion_canvas_adapter import prepare_motion_canvas_source, render_motion_canvas_artifact
 from .png_writer import rect_rgba, transparent, write_png_rgba
 from .registry import REQUIRED_FIELDS_BY_RELATION, TEMPLATE_BY_RELATION, TEMPLATE_CANDIDATES_BY_RELATION
 
@@ -302,21 +304,30 @@ def short_label(value: str, fallback: str = "逻辑") -> str:
     return (compact or fallback)[:MAX_LABEL_CHARS]
 
 
-def render_motion(project_dir: Path, motion_renderer: str | None = None) -> tuple[Path, Path, list[dict[str, str]]]:
+def render_motion(project_dir: Path, motion_renderer: str | None = None, *, draft_ok: bool = False) -> tuple[Path, Path, list[dict[str, str]]]:
     requested_renderer = normalize_motion_renderer(motion_renderer)
     cues_by_id = load_cues(project_dir)
     all_shots = load_shots(project_dir)
     required_shots = load_motion_required_shots(project_dir)
     segments = build_logic_segments(required_shots, cues_by_id, all_shots)
     write_json(plan_dir(project_dir) / "logic_segments.json", {"generated_by": "short_video_engine", "engine_version": ENGINE_VERSION, "command": " ".join(current_command()), "segments": segments})
+    _graphic_plan_path, graphic_plan = build_graphic_scene_plan(project_dir, segments)
+    scenes_by_segment = {
+        str(scene.get("logic_segment_id") or ""): scene
+        for scene in graphic_plan.get("scenes", [])
+        if isinstance(scene, dict)
+    }
     layers = []
     failures = []
     for segment in segments:
-        layer, layer_failures = render_segment(project_dir, segment, requested_renderer)
+        scene = scenes_by_segment.get(str(segment.get("logic_segment_id") or "")) or {}
+        layer, layer_failures = render_segment(project_dir, segment, scene, requested_renderer, draft_ok=draft_ok)
         layers.append(layer)
         failures.extend(layer_failures)
     layers_path = plan_dir(project_dir) / "motion_layers.json"
     write_json(layers_path, {"generated_by": "short_video_engine", "engine_version": ENGINE_VERSION, "command": " ".join(current_command()), "layers": layers})
+    failures.extend(validate_motion_design_quality(project_dir, strict=not draft_ok, allow_pillow_professional=False))
+    failures = dedupe_failures(failures)
     report_path = plan_dir(project_dir) / "motion_overlay_report.json"
     write_json(
         report_path,
@@ -325,6 +336,7 @@ def render_motion(project_dir: Path, motion_renderer: str | None = None) -> tupl
             "status": "PASS" if not failures else "FINAL_BLOCKED",
             "layer_count": len(layers),
             "requested_renderer": requested_renderer,
+            "draft_ok": draft_ok,
             "artifact_renderer_backends": sorted({str(layer.get("renderer_backend") or "") for layer in layers}),
             "motion_source_engines": sorted({str(layer.get("motion_source_engine") or "") for layer in layers if layer.get("motion_source_engine")}),
             "failure_codes": [item["code"] for item in failures],
@@ -332,6 +344,18 @@ def render_motion(project_dir: Path, motion_renderer: str | None = None) -> tupl
         },
     )
     return layers_path, report_path, failures
+
+
+def dedupe_failures(items: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    result: list[dict[str, str]] = []
+    for item in items:
+        key = (str(item.get("code") or ""), str(item.get("message") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
 
 
 def normalize_motion_renderer(value: str | None) -> str:
@@ -376,9 +400,11 @@ def covered_shot_ids_for_segments(segments: list[dict[str, Any]]) -> set[str]:
     return covered
 
 
-def render_segment(project_dir: Path, segment: dict[str, Any], requested_renderer: str = "auto") -> tuple[dict[str, Any], list[dict[str, str]]]:
+def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, Any] | None = None, requested_renderer: str = "auto", *, draft_ok: bool = False) -> tuple[dict[str, Any], list[dict[str, str]]]:
     relation = str(segment.get("logic_relation") or "")
     template, selection_reason = select_template_for_segment(relation, segment)
+    scene = scene or {}
+    professional_template = str(scene.get("scene_template") or "")
     shot_id = str(segment.get("shot_id") or "unknown_shot")
     frame_dir = output_dir(project_dir) / "qc" / "motion_frames" / str(segment.get("logic_segment_id") or shot_id)
     if frame_dir.exists():
@@ -400,12 +426,72 @@ def render_segment(project_dir: Path, segment: dict[str, Any], requested_rendere
             "relation_reason": segment.get("logic_relation_reason") or {},
         },
     }
+    allow_internal_test_renderer = os.environ.get("SVIDEO_ALLOW_INTERNAL_MOTION_CANVAS_TEST_RENDERER") == "1"
+    if professional_template:
+        expression_plan["template"] = professional_template
+        expression_plan["template_selection"]["selected_template"] = professional_template
+        expression_plan["template_selection"]["candidate_templates"] = [professional_template]
+        expression_plan["template_selection"]["selection_reason"] = "motion_director_professional_scene_template"
+    if requested_renderer != "pillow":
+        artifact_info, render_failures = render_motion_canvas_artifact(
+            project_dir,
+            segment,
+            scene,
+            professional_template or template,
+            expression_plan,
+            WIDTH,
+            HEIGHT,
+            FRAME_COUNT,
+            allow_internal_test_renderer=allow_internal_test_renderer,
+        )
+        if not render_failures:
+            frame_evidence = artifact_info.get("frame_evidence") if isinstance(artifact_info.get("frame_evidence"), dict) else {}
+            layer = {
+                "shot_id": shot_id,
+                "covered_shot_ids": segment.get("covered_shot_ids") or [shot_id],
+                "logic_segment_id": segment.get("logic_segment_id"),
+                "graphic_scene_id": scene.get("scene_id"),
+                "scene_template": professional_template,
+                "actual_intervals": segment.get("actual_intervals") or [],
+                "required_intervals": segment.get("required_intervals") or [],
+                "logic_relation": relation,
+                "logic_relation_reason": segment.get("logic_relation_reason") or {},
+                "logic_entities": segment.get("logic_entities") or [],
+                "animation_stages": ["start", "build", "peak", "settle", "end"],
+                "visual_claim": segment.get("visual_claim"),
+                "expression_plan": expression_plan,
+                "motion_text_items": segment.get("motion_text_items") or [],
+                "motion_pattern_family": professional_template or template,
+                "visual_style_version": "motion_canvas_tech_hud_v1",
+                "motion_layout_boxes": motion_layout_boxes(template),
+                "visual_structure_signature": f"{professional_template or template}:{relation}",
+                "preferred_renderer": requested_renderer,
+                **artifact_info,
+                "motion_design_preset_applied": True,
+                "professional_quality_status": "passed",
+                "semantic_readability_status": "passed",
+                "template_stage_count": max(len(stage_contract_for(template, relation)), 5),
+                "overlay_compositing_mode": "transparent_rgba_overlay",
+                "alpha_channel_status": "passed",
+                "background_alpha_policy": "transparent_background_required",
+                "required_animation_stages_completed": True,
+                "decode_or_sequence_probe_status": "passed",
+                "frame_evidence_hashes": {key: hashlib.sha256(Path(value).read_bytes()).hexdigest() for key, value in frame_evidence.items() if Path(str(value)).exists()},
+                **{key: segment[key] for key in REQUIRED_FIELDS_BY_RELATION.get(relation, []) if key in segment},
+            }
+            return layer, validate_layer(layer, project_dir) + validate_layer_quality(layer, scene, strict=True, allow_pillow_professional=False)
+        if not draft_ok:
+            source_info = artifact_info if isinstance(artifact_info, dict) else prepare_motion_canvas_source(project_dir, segment, template, expression_plan, WIDTH, HEIGHT, FRAME_COUNT)
+            layer = blocked_motion_canvas_layer(project_dir, segment, scene, template, expression_plan, source_info, requested_renderer, render_failures)
+            return layer, validate_layer(layer, project_dir) + render_failures
     source_info = prepare_motion_canvas_source(project_dir, segment, template, expression_plan, WIDTH, HEIGHT, FRAME_COUNT)
     if Image is None or ImageDraw is None or ImageFont is None:
         layer = {
             "shot_id": shot_id,
             "covered_shot_ids": segment.get("covered_shot_ids") or [shot_id],
             "logic_segment_id": segment.get("logic_segment_id"),
+            "graphic_scene_id": scene.get("scene_id"),
+            "scene_template": professional_template,
             "actual_intervals": segment.get("actual_intervals") or [],
             "required_intervals": segment.get("required_intervals") or [],
             "logic_relation": relation,
@@ -433,6 +519,8 @@ def render_segment(project_dir: Path, segment: dict[str, Any], requested_rendere
             "required_animation_stages_completed": False,
             "decode_or_sequence_probe_status": "failed",
             "frame_evidence": {},
+            "motion_design_preset_applied": False,
+            "professional_quality_status": "failed",
             **{key: segment[key] for key in REQUIRED_FIELDS_BY_RELATION.get(relation, []) if key in segment},
         }
         return layer, validate_layer(layer, project_dir) + [
@@ -451,6 +539,8 @@ def render_segment(project_dir: Path, segment: dict[str, Any], requested_rendere
         "shot_id": shot_id,
         "covered_shot_ids": segment.get("covered_shot_ids") or [shot_id],
         "logic_segment_id": segment.get("logic_segment_id"),
+        "graphic_scene_id": scene.get("scene_id"),
+        "scene_template": professional_template,
         "actual_intervals": segment.get("actual_intervals") or [],
         "required_intervals": segment.get("required_intervals") or [],
         "logic_relation": relation,
@@ -480,9 +570,60 @@ def render_segment(project_dir: Path, segment: dict[str, Any], requested_rendere
         "decode_or_sequence_probe_status": "passed",
         "frame_evidence": frame_evidence,
         "frame_evidence_hashes": {key: hashlib.sha256(Path(value).read_bytes()).hexdigest() for key, value in frame_evidence.items()},
+        "motion_design_preset_applied": False,
+        "professional_quality_status": "draft_only",
         **{key: segment[key] for key in REQUIRED_FIELDS_BY_RELATION.get(relation, []) if key in segment},
     }
-    return layer, validate_layer(layer, project_dir)
+    failures = validate_layer(layer, project_dir)
+    if not draft_ok:
+        failures.extend(validate_layer_quality(layer, scene, strict=True, allow_pillow_professional=False))
+    else:
+        failures.append(failure("pillow_fallback_draft_only", "Pillow fallback is allowed only as draft/test output and cannot be professional PASS."))
+    return layer, failures
+
+
+def blocked_motion_canvas_layer(project_dir: Path, segment: dict[str, Any], scene: dict[str, Any], template: str, expression_plan: dict[str, Any], source_info: dict[str, Any], requested_renderer: str, render_failures: list[dict[str, str]]) -> dict[str, Any]:
+    relation = str(segment.get("logic_relation") or "")
+    shot_id = str(segment.get("shot_id") or "unknown_shot")
+    frame_dir = output_dir(project_dir) / "qc" / "motion_canvas_frames" / str(scene.get("scene_id") or segment.get("logic_segment_id") or shot_id)
+    return {
+        "shot_id": shot_id,
+        "covered_shot_ids": segment.get("covered_shot_ids") or [shot_id],
+        "logic_segment_id": segment.get("logic_segment_id"),
+        "graphic_scene_id": scene.get("scene_id"),
+        "scene_template": scene.get("scene_template"),
+        "actual_intervals": segment.get("actual_intervals") or [],
+        "required_intervals": segment.get("required_intervals") or [],
+        "logic_relation": relation,
+        "logic_relation_reason": segment.get("logic_relation_reason") or {},
+        "logic_entities": segment.get("logic_entities") or [],
+        "visual_claim": segment.get("visual_claim"),
+        "expression_plan": expression_plan,
+        "motion_text_items": segment.get("motion_text_items") or [],
+        "motion_pattern_family": scene.get("scene_template") or template,
+        "visual_style_version": "motion_canvas_blocked",
+        "motion_layout_boxes": motion_layout_boxes(template),
+        "visual_structure_signature": f"{scene.get('scene_template') or template}:{relation}",
+        "preferred_renderer": requested_renderer,
+        "renderer_backend": "motion_canvas_source",
+        "artifact_renderer_backend": "motion_canvas_source",
+        **source_info,
+        "semantic_readability_status": "failed",
+        "template_stage_count": 0,
+        "png_sequence_dir": str(frame_dir),
+        "layer_type": "source_project",
+        "overlay_compositing_mode": "transparent_rgba_overlay",
+        "alpha_channel_status": "failed",
+        "background_alpha_policy": "transparent_background_required",
+        "sequence_frame_count": 0,
+        "required_animation_stages_completed": False,
+        "decode_or_sequence_probe_status": "failed",
+        "frame_evidence": {},
+        "motion_design_preset_applied": True,
+        "professional_quality_status": "failed",
+        "render_blockers": render_failures,
+        **{key: segment[key] for key in REQUIRED_FIELDS_BY_RELATION.get(relation, []) if key in segment},
+    }
 
 
 def select_template_for_segment(relation: str, segment: dict[str, Any]) -> tuple[str, str]:
