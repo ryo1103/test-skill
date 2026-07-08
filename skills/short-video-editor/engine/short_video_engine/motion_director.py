@@ -193,6 +193,7 @@ def component_inventory(template: str, nodes: list[dict[str, Any]], metrics: lis
 
 def subtitle_summary(subtitle_layout: dict[str, Any], segment: dict[str, Any]) -> dict[str, Any]:
     cues = subtitle_layout.get("cues") if isinstance(subtitle_layout, dict) else []
+    cues = cues if isinstance(cues, list) else []
     wanted = {str(item) for item in (segment.get("subtitle_cue_ids") or [])}
     matched = [cue for cue in cues if isinstance(cue, dict) and str(cue.get("cue_id") or "") in wanted]
     return {

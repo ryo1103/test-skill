@@ -429,6 +429,7 @@ def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, 
     allow_internal_test_renderer = os.environ.get("SVIDEO_ALLOW_INTERNAL_MOTION_CANVAS_TEST_RENDERER") == "1"
     if professional_template:
         expression_plan["template"] = professional_template
+        expression_plan["graphic_scene"] = scene
         expression_plan["template_selection"]["selected_template"] = professional_template
         expression_plan["template_selection"]["candidate_templates"] = [professional_template]
         expression_plan["template_selection"]["selection_reason"] = "motion_director_professional_scene_template"
