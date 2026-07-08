@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import csv
 import shutil
 import subprocess
 import sys
@@ -418,6 +419,40 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("broll_source_overrun", result.stdout)
 
+    def test_s4_talking_head_uses_same_oral_timecode_as_audio(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s4_project(project)
+            manifest = project / "work" / "plan" / "edit_manifest.csv"
+            rows = list(csv.DictReader(manifest.read_text(encoding="utf-8").splitlines()))
+            talking_rows = [row for row in rows if row["visual_mode"] == "talking_head_fullscreen"]
+            self.assertTrue(talking_rows)
+            for row in talking_rows:
+                self.assertAlmostEqual(float(row["source_in"]), float(row["start"]), places=2)
+                self.assertAlmostEqual(float(row["source_out"]), float(row["end"]), places=2)
+                self.assertEqual(row["playback_policy"], "same_timecode_from_oral_video")
+            render_log = read_json(project / "work" / "plan" / "base_render_log.json")
+            talking_trims = [item for item in render_log["trim_intervals"] if item["visual_mode"] == "talking_head_fullscreen"]
+            self.assertTrue(talking_trims)
+            self.assertTrue(any(float(item["source_in"]) > 0 for item in talking_trims))
+
+    def test_s4_talking_head_timecode_mismatch_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s4_project(project)
+
+            def desync_talking_head(rows):
+                for row in rows:
+                    if row["visual_mode"] == "talking_head_fullscreen" and float(row["start"]) > 0:
+                        row["source_in"] = "0.000"
+                        row["source_out"] = row["duration"]
+                        break
+
+            mutate_manifest(project, desync_talking_head)
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S4_base_timeline"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("talking_head_timecode_mismatch", result.stdout)
+
     def test_s4_loop_repeat_freeze_policy_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "project"
@@ -508,6 +543,24 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             self.assertEqual(png_color_type(Path(layer["frame_evidence"]["mid"])), 6)
             frame_hashes = {Path(layer["frame_evidence"][key]).read_bytes() for key in ("start", "mid", "end")}
             self.assertEqual(len(frame_hashes), 3)
+
+    def test_s5_no_pillow_does_not_generate_placeholder_motion(self) -> None:
+        from short_video_engine.producers.motion_renderer import renderer
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            original = (renderer.Image, renderer.ImageDraw, renderer.ImageFont)
+            renderer.Image = None
+            renderer.ImageDraw = None
+            renderer.ImageFont = None
+            try:
+                _layers_path, _report_path, failures = renderer.render_motion(project)
+            finally:
+                renderer.Image, renderer.ImageDraw, renderer.ImageFont = original
+            codes = {item["code"] for item in failures}
+            self.assertIn("motion_text_renderer_unavailable", codes)
+            self.assertIn("motion_placeholder_renderer_forbidden", codes)
 
     def test_s5_merges_short_adjacent_motion_beats_into_one_logic_layer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

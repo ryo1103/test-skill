@@ -22,6 +22,8 @@ MANIFEST_COLUMNS = [
     "source_key",
     "source_url",
     "local_source_clip",
+    "source_in",
+    "source_out",
     "source_duration_sec",
     "playback_policy",
     "talking_head_required",
@@ -73,7 +75,7 @@ def compile_edit_manifest(project_dir: Path) -> tuple[Path, list[dict[str, str]]
         talking_required = bool(shot.get("talking_head_required")) or role in TALKING_ROLES or is_final
         if talking_required:
             visual_mode = "talking_head_fullscreen"
-            row = base_row(shot, start, end, duration, visual_mode, "", "", "", oral_video, float(intake.get("video_stream_duration") or intake.get("container_duration") or 0), "normal", True, is_final)
+            row = base_row(shot, start, end, duration, visual_mode, "", "", "", oral_video, start, end, float(intake.get("video_stream_duration") or intake.get("container_duration") or 0), "same_timecode_from_oral_video", True, is_final)
         else:
             asset = select_broll_asset(broll_assets, broll_index, duration)
             if asset is None:
@@ -91,6 +93,8 @@ def compile_edit_manifest(project_dir: Path) -> tuple[Path, list[dict[str, str]]
                     str(asset.get("source_key") or ""),
                     str(asset.get("source_url") or ""),
                     str(asset.get("local_path") or ""),
+                    0.0,
+                    duration,
                     float(asset.get("duration_sec") or 0),
                     "normal",
                     False,
@@ -140,7 +144,7 @@ def select_broll_asset(assets: list[dict[str, Any]], start_index: int, duration:
     return None
 
 
-def base_row(shot: dict[str, Any], start: float, end: float, duration: float, visual_mode: str, asset_key: str, source_key: str, source_url: str, local_source_clip: str, source_duration: float, playback_policy: str, talking_required: bool, is_final: bool) -> dict[str, Any]:
+def base_row(shot: dict[str, Any], start: float, end: float, duration: float, visual_mode: str, asset_key: str, source_key: str, source_url: str, local_source_clip: str, source_in: float, source_out: float, source_duration: float, playback_policy: str, talking_required: bool, is_final: bool) -> dict[str, Any]:
     return {
         "shot_id": shot.get("shot_id"),
         "unit_id": shot.get("unit_id"),
@@ -153,6 +157,8 @@ def base_row(shot: dict[str, Any], start: float, end: float, duration: float, vi
         "source_key": source_key,
         "source_url": source_url,
         "local_source_clip": local_source_clip,
+        "source_in": f"{source_in:.3f}",
+        "source_out": f"{source_out:.3f}",
         "source_duration_sec": f"{source_duration:.3f}",
         "playback_policy": playback_policy,
         "talking_head_required": str(bool(talking_required)).lower(),

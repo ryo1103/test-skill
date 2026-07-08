@@ -59,11 +59,16 @@ def render_base_plate(project_dir: Path) -> tuple[Path, Path, Path, list[dict[st
     for index, row in enumerate(rows, start=1):
         source = Path(row["local_source_clip"])
         duration = float(row["duration"])
+        source_in = to_float(row.get("source_in"))
         frame_count = max(1, math.ceil(duration * 30))
         segment = work_dir / f"segment_{index:04d}.mp4"
         cmd = [
             ffmpeg,
             "-y",
+            "-ss",
+            f"{source_in:.3f}",
+            "-t",
+            f"{duration:.3f}",
             "-i",
             str(source),
             "-vf",
@@ -129,9 +134,22 @@ def audit_manifest(project_dir: Path, rows: list[dict[str, str]]) -> list[dict[s
         if any(token in policy for token in FORBIDDEN_POLICIES):
             failures.append(failure("forbidden_base_plate_padding", f"Forbidden playback policy: {policy}."))
         duration = to_float(row.get("duration"))
+        start = to_float(row.get("start"))
+        end = to_float(row.get("end"))
+        source_in = to_float(row.get("source_in"))
+        source_out = to_float(row.get("source_out"))
         source_duration = to_float(row.get("source_duration_sec"))
         if visual_mode == "broll_fullscreen" and duration > source_duration + 1e-6:
             failures.append(failure("broll_source_overrun", f"B-roll shot {row.get('shot_id')} duration exceeds source duration."))
+        if source_out > source_duration + 1e-6:
+            failures.append(failure("source_timecode_overrun", f"Shot {row.get('shot_id')} source_out exceeds source duration."))
+        if source_out - source_in + 0.001 < duration:
+            failures.append(failure("source_trim_shorter_than_shot", f"Shot {row.get('shot_id')} source trim is shorter than target duration."))
+        if visual_mode == "talking_head_fullscreen":
+            if abs(source_in - start) > 0.02 or abs(source_out - end) > 0.02:
+                failures.append(failure("talking_head_timecode_mismatch", "Talking-head rows must use the same source timecode interval as the final audio timeline."))
+            if row.get("playback_policy") != "same_timecode_from_oral_video":
+                failures.append(failure("talking_head_playback_policy_invalid", "Talking-head rows must declare same_timecode_from_oral_video playback policy."))
         if row.get("is_final_conclusion", "").lower() == "true" and visual_mode != "talking_head_fullscreen":
             failures.append(failure("final_conclusion_not_talking_head", "Final conclusion must use talking_head_fullscreen."))
         source = Path(row.get("local_source_clip") or "")
@@ -198,7 +216,17 @@ def write_audit(project_dir: Path, audit_path: Path, render_log_path: Path, rows
             "renderer": "base_plate_renderer",
             "ffmpeg_commands": [" ".join(cmd) for cmd in commands],
             "input_clips": [row.get("local_source_clip") for row in rows],
-            "trim_intervals": [{"source": row.get("local_source_clip"), "duration": row.get("duration")} for row in rows],
+            "trim_intervals": [
+                {
+                    "shot_id": row.get("shot_id"),
+                    "visual_mode": row.get("visual_mode"),
+                    "source": row.get("local_source_clip"),
+                    "source_in": row.get("source_in"),
+                    "source_out": row.get("source_out"),
+                    "duration": row.get("duration"),
+                }
+                for row in rows
+            ],
             "scale_crop_policy": "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
             "output_duration": base_duration,
             "audio_source": intake.get("oral_video_path"),

@@ -401,6 +401,47 @@ def render_segment(project_dir: Path, segment: dict[str, Any], requested_rendere
         },
     }
     source_info = prepare_motion_canvas_source(project_dir, segment, template, expression_plan, WIDTH, HEIGHT, FRAME_COUNT)
+    if Image is None or ImageDraw is None or ImageFont is None:
+        layer = {
+            "shot_id": shot_id,
+            "covered_shot_ids": segment.get("covered_shot_ids") or [shot_id],
+            "logic_segment_id": segment.get("logic_segment_id"),
+            "actual_intervals": segment.get("actual_intervals") or [],
+            "required_intervals": segment.get("required_intervals") or [],
+            "logic_relation": relation,
+            "logic_relation_reason": segment.get("logic_relation_reason") or {},
+            "logic_entities": segment.get("logic_entities") or [],
+            "visual_claim": segment.get("visual_claim"),
+            "expression_plan": expression_plan,
+            "motion_text_items": segment.get("motion_text_items") or [],
+            "motion_pattern_family": template,
+            "visual_style_version": "blocked_no_text_renderer",
+            "motion_layout_boxes": motion_layout_boxes(template),
+            "visual_structure_signature": f"{template}:{relation}",
+            "preferred_renderer": requested_renderer,
+            "renderer_backend": "blocked_no_text_renderer",
+            "artifact_renderer_backend": "blocked_no_text_renderer",
+            **source_info,
+            "semantic_readability_status": "failed",
+            "template_stage_count": len(stage_contract_for(template, relation)),
+            "png_sequence_dir": str(frame_dir),
+            "layer_type": "png_sequence",
+            "overlay_compositing_mode": "transparent_rgba_overlay",
+            "alpha_channel_status": "failed",
+            "background_alpha_policy": "transparent_background_required",
+            "sequence_frame_count": 0,
+            "required_animation_stages_completed": False,
+            "decode_or_sequence_probe_status": "failed",
+            "frame_evidence": {},
+            **{key: segment[key] for key in REQUIRED_FIELDS_BY_RELATION.get(relation, []) if key in segment},
+        }
+        return layer, validate_layer(layer, project_dir) + [
+            failure(
+                "motion_text_renderer_unavailable",
+                "Pillow text rendering is unavailable, so the engine refuses to generate minimal rectangle placeholder motion.",
+                "Install Pillow or use a renderer that produces real readable motion overlays.",
+            )
+        ]
     for index in range(FRAME_COUNT):
         path = frame_dir / f"frame_{index:03d}.png"
         draw_template(path, template, index, segment)
@@ -837,6 +878,8 @@ def validate_layer(layer: dict[str, Any], project_dir: Path) -> list[dict[str, s
     relation = str(layer.get("logic_relation") or "")
     if layer.get("layer_type") in {"static_png", "ass", "drawtext"}:
         failures.append(failure("invalid_motion_layer_type", "Static PNG, ASS, and drawtext layers cannot satisfy logic motion."))
+    if layer.get("renderer_backend") in {"fallback_minimal_rgba", "blocked_no_text_renderer"} or str(layer.get("visual_style_version") or "").startswith("fallback"):
+        failures.append(failure("motion_placeholder_renderer_forbidden", "Minimal rectangle placeholder motion cannot satisfy S5. Render readable script-derived logic motion instead."))
     for key in REQUIRED_FIELDS_BY_RELATION.get(relation, []):
         if not layer.get(key):
             failures.append(failure(f"missing_{key}", f"{relation} motion requires {key}."))
