@@ -54,6 +54,11 @@ def compile_edit_manifest(project_dir: Path) -> tuple[Path, list[dict[str, str]]
     intake = read_json(plan_dir(project_dir) / "project_intake_report.json", {})
     oral_video = str(intake.get("oral_video_path") or "")
     oral_duration = float(intake.get("audio_stream_duration") or intake.get("audio_duration") or 0)
+    oral_source_duration = max(
+        float(intake.get("container_duration") or 0),
+        float(intake.get("audio_stream_duration") or intake.get("audio_duration") or 0),
+        float(intake.get("video_stream_duration") or 0),
+    )
     shots = load_shots(project_dir)
     assets, asset_failures, _duplicates = distinct_passed_records(project_dir, load_manifest(project_dir))
     failures: list[dict[str, str]] = []
@@ -75,7 +80,7 @@ def compile_edit_manifest(project_dir: Path) -> tuple[Path, list[dict[str, str]]
         talking_required = bool(shot.get("talking_head_required")) or role in TALKING_ROLES or is_final
         if talking_required:
             visual_mode = "talking_head_fullscreen"
-            row = base_row(shot, start, end, duration, visual_mode, "", "", "", oral_video, start, end, float(intake.get("video_stream_duration") or intake.get("container_duration") or 0), "same_timecode_from_oral_video", True, is_final)
+            row = base_row(shot, start, end, duration, visual_mode, "", "", "", oral_video, start, end, oral_source_duration, "same_timecode_from_oral_video", True, is_final)
         else:
             asset = select_broll_asset(broll_assets, broll_index, duration)
             if asset is None:

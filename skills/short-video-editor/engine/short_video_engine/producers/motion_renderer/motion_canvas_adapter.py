@@ -171,7 +171,6 @@ def draw_hud_frame(pixels: bytearray, width: int, height: int, template: str, pr
     glow = int(80 + 80 * progress)
     draw_scan_grid(pixels, width, height, progress)
     draw_panel_shell(pixels, width, height, panel_x, panel_y, panel_w, panel_h, progress)
-    draw_title_plate(pixels, width, height, safe_top, progress)
     if template == "chip_node_network":
         draw_network(pixels, width, height, progress, glow)
     elif template == "system_error_terminal":
@@ -340,6 +339,7 @@ def package_json() -> str:
     "@motion-canvas/2d": "^3.17.0",
     "@motion-canvas/core": "^3.17.0",
     "@motion-canvas/vite-plugin": "^3.17.0",
+    "sharp": "^0.33.5",
     "vite": "^5.0.0",
     "typescript": "^5.0.0"
   },
@@ -352,6 +352,7 @@ def render_sequence_mjs() -> str:
     return """import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import sharp from 'sharp';
 
 const root = process.cwd();
 const props = JSON.parse(fs.readFileSync(path.join(root, 'motion-props.json'), 'utf8'));
@@ -361,6 +362,10 @@ const height = Number(canvas.height ?? 1920);
 const frameCount = Number(canvas.frame_count ?? 24);
 const scene = props.expression_plan?.graphic_scene ?? {};
 const template = String(scene.scene_template ?? props.template ?? 'tech_hud_concept_card');
+const textItems = [
+  ...(Array.isArray(scene.secondary_labels) ? scene.secondary_labels : []),
+  ...(Array.isArray(props.motion_text_items) ? props.motion_text_items : []),
+].map(String).filter(Boolean);
 const output = path.join(root, 'output');
 fs.mkdirSync(output, {recursive: true});
 for (const item of fs.readdirSync(output)) {
@@ -372,14 +377,15 @@ for (let i = 0; i < frameCount; i++) {
   const p = t * t * (3 - 2 * t);
   const pixels = Buffer.alloc(width * height * 4);
   drawFrame(pixels, width, height, template, p, i);
-  writePng(path.join(output, `frame_${String(i).padStart(3, '0')}.png`), width, height, pixels);
+  const file = path.join(output, `frame_${String(i).padStart(3, '0')}.png`);
+  writePng(file, width, height, pixels);
+  await annotateText(file, template, p);
 }
 console.log(JSON.stringify({status: 'rendered', output, frameCount, template}));
 
 function drawFrame(px, w, h, tpl, p, index) {
   scanGrid(px, w, h, p);
   panel(px, w, h, 112, 688, 856, 588, p);
-  title(px, w, h, 420, p);
   if (tpl === 'system_error_terminal') terminal(px, w, h, p, index);
   else if (tpl === 'kpi_dual_meter_panel') meters(px, w, h, p);
   else if (tpl === 'process_milestone_rail') rail(px, w, h, p);
@@ -480,6 +486,67 @@ function concept(px, w, h, p) {
     rect(px, w, h, 228 + idx * 28, y, Math.round((620 - idx * 56) * local), 68, [12, 36, 54, Math.round(92 + 82 * local)]);
     rect(px, w, h, 254 + idx * 28, y + 24, Math.round((300 - idx * 28) * local), 12, [255, 255, 255, Math.round(180 * local)]);
   });
+}
+
+async function annotateText(file, tpl, p) {
+  if (p < 0.08) return;
+  const svg = textOverlaySvg(tpl, p);
+  const tmp = `${file}.tmp.png`;
+  await sharp(file)
+    .composite([{input: Buffer.from(svg), left: 0, top: 0}])
+    .png()
+    .toFile(tmp);
+  fs.renameSync(tmp, file);
+}
+
+function textOverlaySvg(tpl, p) {
+  const opacity = Math.max(0, Math.min(1, (p - 0.08) / 0.28));
+  const parts = [];
+  if (tpl === 'chip_node_network') {
+    [[250, 990], [430, 790], [650, 1068], [830, 848]].forEach(([x, y], i) => {
+      parts.push(svgText(label(i, `节点${i + 1}`), x, y, 24, '#FFFFFF', 700, opacity, 'middle'));
+    });
+  } else if (tpl === 'system_error_terminal') {
+    parts.push(svgText(label(0, '异常告警'), 206, 826, 28, '#FFFFFF', 800, opacity));
+    [0, 1, 2, 3].forEach((i) => parts.push(svgText(label(i, `处理${i + 1}`), 214, 864 + i * 48, 22, '#EAF7FF', 650, opacity)));
+    parts.push(svgText('RESOLVE', 214, 1168, 20, '#F8D34D', 800, opacity));
+  } else if (tpl === 'kpi_dual_meter_panel') {
+    parts.push(svgText(label(0, '基准指标'), 260, 820, 28, '#FFFFFF', 750, opacity));
+    parts.push(svgText(label(1, '变化趋势'), 260, 1010, 28, '#FFFFFF', 750, opacity));
+    parts.push(svgText('88%', 762, 826, 30, '#72EBCB', 900, opacity, 'middle'));
+    parts.push(svgText('72%', 762, 1016, 30, '#F8D34D', 900, opacity, 'middle'));
+  } else if (tpl === 'process_milestone_rail') {
+    [230, 430, 630, 830].forEach((x, i) => {
+      parts.push(svgText(`0${i + 1}`, x, 930, 22, '#F8D34D', 900, opacity, 'middle'));
+      parts.push(svgText(label(i, `阶段${i + 1}`), x, 1024, 22, '#FFFFFF', 700, opacity, 'middle'));
+    });
+  } else if (tpl === 'comparison_split_glass' || tpl === 'not_x_but_y_pivot_panel') {
+    parts.push(svgText(label(0, '旧判断'), 330, 980, 28, '#FFFFFF', 800, opacity, 'middle'));
+    parts.push(svgText(label(textItems.length - 1, '新判断'), 752, 980, 28, '#FFFFFF', 800, opacity, 'middle'));
+    parts.push(svgText('PIVOT', 548, 960, 18, '#02070B', 900, opacity, 'middle'));
+  } else if (tpl === 'callout_lens_overlay') {
+    parts.push(svgText(label(0, '关键细节'), 540, 950, 30, '#FFFFFF', 800, opacity, 'middle'));
+  } else {
+    [0, 1, 2].forEach((i) => parts.push(svgText(label(i, `要点${i + 1}`), 254 + i * 28, 866 + i * 104, 27, '#FFFFFF', 750, opacity)));
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><style>text{font-family:'PingFang SC','Heiti SC','Arial Unicode MS',sans-serif;paint-order:stroke;stroke:#02070B;stroke-width:5px;stroke-linejoin:round;}</style>${parts.join('')}</svg>`;
+}
+
+function svgText(text, x, y, size, color, weight, opacity = 1, anchor = 'start') {
+  return `<text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${color}" opacity="${opacity.toFixed(3)}" text-anchor="${anchor}">${escapeXml(text)}</text>`;
+}
+
+function label(index, fallback) {
+  return fit(textItems[index] ?? fallback, 13);
+}
+
+function fit(value, max) {
+  const text = String(value ?? '').replace(/\\s+/g, '');
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function escapeXml(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;'}[ch]));
 }
 
 function rect(px, w, h, x, y, ww, hh, rgba) {
@@ -640,9 +707,6 @@ export function HudShell({title}: {title: string}) {
       <Line points={[[428, -174], [344, -174]]} stroke={palette.gold} lineWidth={5} />
       <Line points={[[-428, 414], [-344, 414]]} stroke={palette.gold} lineWidth={5} />
       <Line points={[[428, 414], [344, 414]]} stroke={palette.gold} lineWidth={5} />
-      <Rect x={0} y={-400} width={696} height={96} radius={18} fill={palette.ink} stroke={'rgba(114,235,203,0.42)'} lineWidth={2}>
-        <Txt text={title} fill={palette.text} fontFamily={'PingFang SC'} fontSize={42} fontWeight={700} />
-      </Rect>
     </Rect>
   );
 }
