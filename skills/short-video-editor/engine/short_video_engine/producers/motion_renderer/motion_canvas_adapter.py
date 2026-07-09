@@ -468,24 +468,27 @@ function semanticNegation(px, w, h, p) {
   const a = Math.min(p * 1.7, 1);
   const b = Math.min(Math.max(p - 0.18, 0) * 1.8, 1);
   const c = Math.min(Math.max(p - 0.42, 0) * 1.8, 1);
-  rect(px, w, h, 172, 810, 260, 160, [70, 90, 128, Math.round(150 * a)]);
-  rect(px, w, h, 648, 810, 260, 160, [70, 90, 128, Math.round(150 * b)]);
-  rect(px, w, h, 454, 1012, 172, 146, [28, 126, 92, Math.round(170 * c)]);
-  rect(px, w, h, 188, 884, Math.round(228 * a), 10, [255, 92, 122, Math.round(230 * a)]);
-  rect(px, w, h, 664, 884, Math.round(228 * b), 10, [255, 92, 122, Math.round(230 * b)]);
-  rect(px, w, h, 260, 1080, Math.round(560 * c), 9, [248, 211, 77, Math.round(230 * c)]);
-  rect(px, w, h, 810, 1068, Math.round(38 * c), 32, [248, 211, 77, Math.round(230 * c)]);
+  iconCard(px, w, h, 172, 792, 260, 188, a, 'danger');
+  iconCard(px, w, h, 648, 792, 260, 188, b, 'danger');
+  iconCard(px, w, h, 418, 1010, 244, 158, c, 'success');
+  rejectStroke(px, w, h, 190, 852, 224, a);
+  rejectStroke(px, w, h, 666, 852, 224, b);
+  connectorSpine(px, w, h, 248, 1090, 584, c);
+  flowPackets(px, w, h, 266, 1090, 540, c, 4);
+  rect(px, w, h, 510, 1038, Math.round(60 * c), 38, [114, 235, 203, Math.round(220 * c)]);
+  rect(px, w, h, 528, 1020, Math.round(24 * c), 74, [114, 235, 203, Math.round(180 * c)]);
 }
 
 function semanticConnector(px, w, h, p) {
   [250, 540, 830].forEach((x, idx) => {
     const local = Math.max(0, Math.min(1, p * 3.2 - idx * 0.42));
-    rect(px, w, h, x - 78, 890, 156, 126, [12, 36, 54, Math.round(90 + 105 * local)]);
-    rect(px, w, h, x - 18, 930, 36, 36, [114, 235, 203, Math.round(210 * local)]);
+    iconCard(px, w, h, x - 86, 862, 172, 156, local, idx === 1 ? 'success' : 'cyan');
+    portGlyph(px, w, h, x, 930, local, idx);
   });
   const flow = Math.min(Math.max(p - 0.22, 0) * 1.45, 1);
-  rect(px, w, h, 328, 950, Math.round(424 * flow), 12, [248, 211, 77, Math.round(230 * flow)]);
-  rect(px, w, h, 744, 938, Math.round(38 * flow), 36, [248, 211, 77, Math.round(230 * flow)]);
+  connectorSpine(px, w, h, 330, 940, 420, flow);
+  flowPackets(px, w, h, 348, 940, 370, flow, 5);
+  rect(px, w, h, 742, 928, Math.round(40 * flow), 34, [248, 211, 77, Math.round(230 * flow)]);
 }
 
 function directionArrow(px, w, h, p) {
@@ -495,21 +498,69 @@ function directionArrow(px, w, h, p) {
 }
 
 function semanticProcess(px, w, h, p) {
-  rect(px, w, h, 184, 840, 250, 100, [255, 92, 122, Math.round(86 + 54 * p)]);
-  rect(px, w, h, 194, 902, Math.round(218 * Math.min(p * 1.4, 1)), 8, [255, 92, 122, 220]);
-  semanticConnector(px, w, h, p);
-  rect(px, w, h, 638, 1030, 250, 100, [114, 235, 203, Math.round(86 + 92 * p)]);
-  rect(px, w, h, 438, 1014, Math.round(210 * Math.min(Math.max(p - 0.35, 0) * 1.7, 1)), 10, [248, 211, 77, 230]);
+  const oldPath = Math.min(p * 1.5, 1);
+  const transition = Math.min(Math.max(p - 0.28, 0) * 1.8, 1);
+  const newPath = Math.min(Math.max(p - 0.52, 0) * 2.0, 1);
+  iconCard(px, w, h, 170, 828, 270, 132, oldPath, 'danger');
+  rect(px, w, h, 196, 912, Math.round(216 * oldPath), 8, [255, 92, 122, 225]);
+  connectorSpine(px, w, h, 310, 1000, 440, transition);
+  flowPackets(px, w, h, 330, 1000, 390, transition, 4);
+  iconCard(px, w, h, 626, 1030, 282, 132, newPath, 'success');
+  rect(px, w, h, 652, 1112, Math.round(228 * newPath), 8, [114, 235, 203, 225]);
+  rect(px, w, h, 470, 954, Math.round(120 * transition), 86, [248, 211, 77, Math.round(70 * transition)]);
 }
 
 function semanticDensity(px, w, h, p) {
   const left = Math.min(p * 1.4, 1);
   const pressure = Math.min(Math.max(p - 0.22, 0) * 1.7, 1);
   const expand = Math.min(Math.max(p - 0.48, 0) * 1.9, 1);
-  rect(px, w, h, 184, 840, 250, 270, [38, 90, 128, Math.round(140 * left)]);
-  [440, 470, 500].forEach((x) => rect(px, w, h, x, 848, 8, Math.round(246 * pressure), [255, 92, 122, Math.round(210 * pressure)]));
-  rect(px, w, h, 596, 870, Math.round(300 + 110 * expand), 220, [28, 126, 92, Math.round(120 + 72 * expand)]);
-  rect(px, w, h, 620, 980, Math.round(236 * expand), 12, [248, 211, 77, 230]);
+  iconCard(px, w, h, 176, 830, 260, 286, left, 'cyan');
+  [448, 480, 512].forEach((x, i) => {
+    rect(px, w, h, x, 850 + i * 16, 10, Math.round(220 * pressure), [255, 92, 122, Math.round(210 * pressure)]);
+    rect(px, w, h, x - Math.round(38 * pressure), 954 + i * 16, Math.round(38 * pressure), 8, [255, 92, 122, Math.round(180 * pressure)]);
+  });
+  iconCard(px, w, h, 596, 860, Math.round(286 + 130 * expand), 236, expand, 'success');
+  rect(px, w, h, 620, 978, Math.round(240 * expand), 12, [248, 211, 77, 230]);
+  rect(px, w, h, 620, 1016, Math.round(322 * expand), 10, [114, 235, 203, 210]);
+}
+
+function iconCard(px, w, h, x, y, ww, hh, p, tone) {
+  const palette = tone === 'danger' ? [255, 92, 122] : tone === 'success' ? [114, 235, 203] : [110, 235, 255];
+  rect(px, w, h, x - 10, y - 10, ww + 20, hh + 20, [palette[0], palette[1], palette[2], Math.round(18 * p)]);
+  rect(px, w, h, x, y, ww, hh, [8, 22, 34, Math.round(110 + 48 * p)]);
+  rect(px, w, h, x, y, Math.round(ww * p), 3, [palette[0], palette[1], palette[2], Math.round(180 * p)]);
+  rect(px, w, h, x + 16, y + 18, Math.round((ww - 32) * p), 9, [255, 255, 255, Math.round(70 * p)]);
+  rect(px, w, h, x + Math.round(ww * 0.5) - 30, y + Math.round(hh * 0.45) - 30, 60, 60, [palette[0], palette[1], palette[2], Math.round(72 + 90 * p)]);
+  rect(px, w, h, x + Math.round(ww * 0.5) - 16, y + Math.round(hh * 0.45) - 16, 32, 32, [2, 7, 12, Math.round(110 * p)]);
+}
+
+function rejectStroke(px, w, h, x, y, len, p) {
+  const visible = Math.round(len * p);
+  rect(px, w, h, x, y, visible, 10, [255, 92, 122, Math.round(235 * p)]);
+  rect(px, w, h, x + 18, y + 34, Math.max(0, visible - 34), 8, [255, 92, 122, Math.round(185 * p)]);
+}
+
+function connectorSpine(px, w, h, x, y, len, p) {
+  rect(px, w, h, x, y - 8, Math.round(len * p), 16, [248, 211, 77, Math.round(190 * p)]);
+  rect(px, w, h, x, y - 2, Math.round(len * p), 4, [255, 255, 255, Math.round(160 * p)]);
+}
+
+function flowPackets(px, w, h, x, y, len, p, count) {
+  for (let i = 0; i < count; i++) {
+    const phase = Math.max(0, Math.min(1, p * 1.35 - i * 0.12));
+    const px0 = x + Math.round(len * phase);
+    rect(px, w, h, px0, y - 18, Math.round(30 * phase), 36, [114, 235, 203, Math.round(170 * phase)]);
+  }
+}
+
+function portGlyph(px, w, h, x, y, p, idx) {
+  if (idx === 1) {
+    rect(px, w, h, x - 28, y - 34, 56, 68, [114, 235, 203, Math.round(160 * p)]);
+    rect(px, w, h, x - 12, y - 50, 24, 100, [114, 235, 203, Math.round(130 * p)]);
+  } else {
+    rect(px, w, h, x - 30, y - 30, 60, 60, [110, 235, 255, Math.round(130 * p)]);
+    rect(px, w, h, x - 8, y - 48, 16, 96, [110, 235, 255, Math.round(88 * p)]);
+  }
 }
 
 function scanGrid(px, w, h, p) {
@@ -620,22 +671,41 @@ function textOverlaySvg(tpl, p) {
   const opacity = Math.max(0, Math.min(1, (p - 0.08) / 0.28));
   const parts = [];
   if (tpl === 'negation_to_connector_scene') {
+    parts.push(svgLine(190, 822, 414, 960, '#FF5C7A', 12, opacity));
+    parts.push(svgLine(666, 822, 890, 960, '#FF5C7A', 12, opacity));
+    parts.push(svgText('REJECTED', 302, 832, 18, '#FF5C7A', 900, opacity, 'middle'));
+    parts.push(svgText('REJECTED', 778, 832, 18, '#FF5C7A', 900, opacity, 'middle'));
     parts.push(svgText(label(0, '芯片'), 302, 900, 30, '#FFFFFF', 800, opacity, 'middle'));
     parts.push(svgText(label(1, '光模块'), 778, 900, 30, '#FFFFFF', 800, opacity, 'middle'));
+    parts.push(svgText('ACCEPTED CONNECTOR', 540, 1042, 18, '#72EBCB', 900, opacity, 'middle'));
     parts.push(svgText(label(2, '连接器'), 540, 1104, 28, '#FFFFFF', 800, opacity, 'middle'));
   } else if (tpl === 'connector_flow_scene' || tpl === 'concept_definition_scene' || tpl === 'cause_to_result_scene' || tpl === 'before_after_scene') {
+    parts.push(svgLine(332, 940, 748, 940, '#F8D34D', 8, opacity));
+    parts.push(svgPath('M730 924 L758 940 L730 956', '#F8D34D', 8, opacity));
+    parts.push(svgText('FLOW THROUGH', 540, 790, 18, '#72EBCB', 900, opacity, 'middle'));
+    [[250, 842, 'INPUT'], [540, 842, 'CONNECTOR'], [830, 842, 'OUTPUT']].forEach(([x, y, text]) => parts.push(svgText(text, x, y, 16, '#6EEBFF', 900, opacity, 'middle')));
     [[250, 1050], [540, 1050], [830, 1050]].forEach(([x, y], i) => parts.push(svgText(label(i, ['输入','连接器','输出'][i]), x, y, 26, '#FFFFFF', 750, opacity, 'middle')));
   } else if (tpl === 'metric_growth_scene') {
     parts.push(svgText(label(0, '连接规模'), 260, 820, 28, '#FFFFFF', 750, opacity));
     parts.push(svgText(label(2, '快速增加'), 260, 1010, 28, '#FFFFFF', 750, opacity));
-    parts.push(svgText('GROWTH', 540, 1210, 22, '#F8D34D', 900, opacity, 'middle'));
+    parts.push(svgText('BASELINE', 760, 830, 20, '#72EBCB', 900, opacity, 'middle'));
+    parts.push(svgText('+72%', 760, 1020, 32, '#F8D34D', 900, opacity, 'middle'));
+    parts.push(svgPath('M430 1168 L680 1168 L650 1142 M680 1168 L650 1194', '#F8D34D', 9, opacity));
   } else if (tpl === 'process_migration_scene') {
+    parts.push(svgText('OLD PATH', 310, 850, 18, '#FF5C7A', 900, opacity, 'middle'));
+    parts.push(svgText('TRANSITION', 540, 970, 18, '#F8D34D', 900, opacity, 'middle'));
+    parts.push(svgText('NEW PATH', 760, 1052, 18, '#72EBCB', 900, opacity, 'middle'));
+    parts.push(svgPath('M330 1000 L730 1000 L704 984 M730 1000 L704 1016', '#F8D34D', 8, opacity));
     parts.push(svgText(label(0, '旧路径'), 310, 930, 26, '#FFFFFF', 800, opacity, 'middle'));
     parts.push(svgText(label(1, '新路径'), 540, 1048, 26, '#FFFFFF', 800, opacity, 'middle'));
     parts.push(svgText(label(2, '结果'), 763, 1120, 26, '#FFFFFF', 800, opacity, 'middle'));
   } else if (tpl === 'density_pressure_scene') {
+    parts.push(svgText('LIMIT', 310, 852, 18, '#6EEBFF', 900, opacity, 'middle'));
+    parts.push(svgText('PRESSURE', 514, 768, 20, '#FF5C7A', 900, opacity, 'middle'));
+    parts.push(svgText('EXPAND', 746, 884, 20, '#72EBCB', 900, opacity, 'middle'));
+    parts.push(svgPath('M512 914 L580 914 M560 894 L580 914 L560 934', '#FF5C7A', 8, opacity));
     parts.push(svgText(label(0, 'FAU'), 310, 990, 28, '#FFFFFF', 800, opacity, 'middle'));
-    parts.push(svgText(label(1, '高密度压力'), 480, 820, 22, '#FF5C7A', 800, opacity, 'middle'));
+    parts.push(svgText(label(1, '高密度压力'), 514, 1088, 22, '#FF5C7A', 800, opacity, 'middle'));
     parts.push(svgText(label(2, 'GlassBridge'), 746, 1000, 28, '#FFFFFF', 800, opacity, 'middle'));
   } else if (tpl === 'chip_node_network') {
     [[250, 990], [430, 790], [650, 1068], [830, 848]].forEach(([x, y], i) => {
@@ -669,6 +739,14 @@ function textOverlaySvg(tpl, p) {
 
 function svgText(text, x, y, size, color, weight, opacity = 1, anchor = 'start') {
   return `<text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${color}" opacity="${opacity.toFixed(3)}" text-anchor="${anchor}">${escapeXml(text)}</text>`;
+}
+
+function svgLine(x1, y1, x2, y2, color, width, opacity = 1) {
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${width}" stroke-linecap="round" opacity="${opacity.toFixed(3)}"/>`;
+}
+
+function svgPath(d, color, width, opacity = 1) {
+  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity.toFixed(3)}"/>`;
 }
 
 function label(index, fallback) {
