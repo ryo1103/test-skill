@@ -1,0 +1,73 @@
+{
+  "generated_by": "short_video_engine",
+  "registry_id": "remotion_template_registry_v1",
+  "style": "tech_hud_glass",
+  "templates": [
+    {
+      "template_id": "negation_to_connector",
+      "component": "NegationToConnector",
+      "supports_semantic_actions": ["negate_and_redefine"],
+      "required_slots": ["subject", "rejected_a", "rejected_b", "accepted_definition"],
+      "required_visual_actions": ["show_rejected_a", "reject_a", "show_rejected_b", "reject_b", "reveal_definition", "show_connection_flow"]
+    },
+    {
+      "template_id": "connector_flow",
+      "component": "ConnectorFlow",
+      "supports_semantic_actions": ["connector_metaphor", "cause_to_result"],
+      "required_slots": ["input", "connector", "output"],
+      "required_visual_actions": ["input_flow", "through_connector", "output_flow"]
+    },
+    {
+      "template_id": "metric_growth",
+      "component": "MetricGrowth",
+      "supports_semantic_actions": ["metric_growth"],
+      "required_slots": ["metric", "baseline", "target_or_delta"],
+      "required_visual_actions": ["bar_grow", "number_change", "direction_emphasis"]
+    },
+    {
+      "template_id": "process_migration",
+      "component": "ProcessMigration",
+      "supports_semantic_actions": ["process_migration", "before_after_change"],
+      "required_slots": ["old_step", "new_step", "result"],
+      "required_visual_actions": ["old_path", "transition", "new_path"]
+    },
+    {
+      "template_id": "density_pressure",
+      "component": "DensityPressure",
+      "supports_semantic_actions": ["density_comparison"],
+      "required_slots": ["old_solution", "new_requirement", "new_solution"],
+      "required_visual_actions": ["old_limit", "requirement_pressure", "new_solution_expansion"]
+    },
+    {
+      "template_id": "concept_definition",
+      "component": "ConceptDefinition",
+      "supports_semantic_actions": ["concept_definition"],
+      "required_slots": ["subject", "definition", "role"],
+      "required_visual_actions": ["show_subject", "show_definition", "show_role_connection"]
+    },
+    {
+      "template_id": "system_error_panel",
+      "component": "SystemErrorPanel",
+      "supports_semantic_actions": ["cause_to_result", "concept_definition"],
+      "required_slots": ["cause", "mechanism", "result"],
+      "required_visual_actions": ["show_cause", "show_mechanism", "show_result"]
+    },
+    {
+      "template_id": "node_relation_triangle",
+      "component": "NodeRelationTriangle",
+      "supports_semantic_actions": ["cause_to_result", "concept_definition", "connector_metaphor"],
+      "required_slots": ["cause", "mechanism", "result"],
+      "required_visual_actions": ["show_cause", "show_mechanism", "show_result"]
+    }
+  ],
+  "deterministic_mapping": {
+    "negate_and_redefine": "negation_to_connector",
+    "connector_metaphor": "connector_flow",
+    "metric_growth": "metric_growth",
+    "process_migration": "process_migration",
+    "density_comparison": "density_pressure",
+    "concept_definition": "concept_definition",
+    "cause_to_result": "connector_flow",
+    "before_after_change": "process_migration"
+  }
+}

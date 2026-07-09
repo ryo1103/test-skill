@@ -69,8 +69,8 @@ def validate_layer_quality(layer: dict[str, Any], scene: dict[str, Any] | None, 
     backend = str(layer.get("renderer_backend") or "")
     if strict and backend == "pillow_sequence" and not allow_pillow_professional:
         failures.append(failure("motion_professional_renderer_required", "Strict professional PASS cannot use pillow_sequence as the renderer backend."))
-    if backend == "motion_canvas_source":
-        failures.append(failure("motion_source_only_not_evidence", "Motion Canvas source files are handoff only and cannot satisfy professional PASS."))
+    if backend in {"motion_canvas_source", "remotion_source"}:
+        failures.append(failure("motion_source_only_not_evidence", "Motion source files are handoff only and cannot satisfy professional PASS."))
     if layer.get("motion_design_preset_applied") is not True:
         failures.append(failure("motion_design_preset_not_applied", "Motion layer must declare motion_design_preset_applied=true."))
     if strict and layer.get("professional_quality_status") != "passed":

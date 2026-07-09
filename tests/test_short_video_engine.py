@@ -18,9 +18,11 @@ CLI = SKILL_ROOT / "engine" / "short_video_engine" / "cli.py"
 sys.path.insert(0, str(SKILL_ROOT / "engine"))
 
 
-def run_cmd(args: list[str], check: bool = False) -> subprocess.CompletedProcess[str]:
+def run_cmd(args: list[str], check: bool = False, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.setdefault("SVIDEO_ALLOW_INTERNAL_MOTION_CANVAS_TEST_RENDERER", "1")
+    if extra_env:
+        env.update(extra_env)
     result = subprocess.run([sys.executable, *args], cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     if check and result.returncode != 0:
         raise AssertionError(f"command failed: {result.args}\nstdout={result.stdout}\nstderr={result.stderr}")
@@ -645,6 +647,41 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
                 self.assertEqual(layer["renderer_backend"], "motion_canvas_sequence")
                 for key in ("start", "build", "peak", "settle", "end"):
                     self.assertTrue(Path(layer["frame_evidence"][key]).exists())
+
+    def test_s5_remotion_renderer_uses_registry_decisions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。GlassBridge它不是一颗芯片，也不是新的光模块，而是一个光纤连接器。最后总结观点。")
+            run_cmd(
+                [str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay", "--motion-renderer", "remotion"],
+                check=True,
+                extra_env={"SVIDEO_ALLOW_INTERNAL_REMOTION_TEST_RENDERER": "1"},
+            )
+            decisions = read_json(project / "work" / "plan" / "remotion_template_decisions.json")
+            layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
+            self.assertEqual(decisions["decisions"][0]["selected_template"], "negation_to_connector")
+            self.assertEqual(decisions["decisions"][0]["semantic_action"], "negate_and_redefine")
+            self.assertEqual(layer["renderer_backend"], "remotion_sequence")
+            self.assertEqual(layer["motion_source_engine"], "remotion")
+            self.assertEqual(layer["selected_template"], "negation_to_connector")
+            self.assertIn("input_props_hash", layer)
+            self.assertTrue((project / "output" / "qc" / "remotion_motion_frames" / layer["motion_id"]).is_dir())
+            for key in ("start", "build", "peak", "settle", "end"):
+                self.assertTrue(Path(layer["frame_evidence"][key]).exists())
+
+    def test_s5_remotion_source_only_cannot_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd(
+                [str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay", "--motion-renderer", "remotion"],
+                check=True,
+                extra_env={"SVIDEO_ALLOW_INTERNAL_REMOTION_TEST_RENDERER": "1"},
+            )
+            mutate_motion_layers(project, lambda payload: payload["layers"][0].update({"renderer_backend": "remotion_source", "artifact_renderer_backend": "remotion_source", "layer_type": "source_project", "frame_evidence": {}}))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("motion_source_only_not_evidence", result.stdout)
 
     def test_s5_negation_assertion_requires_rejection_and_connector_flow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

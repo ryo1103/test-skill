@@ -163,4 +163,4 @@ def action_specific_failures(assertion_id: str, semantic_action: str, proof: dic
 def is_rendered(layer: dict[str, Any]) -> bool:
     backend = str(layer.get("renderer_backend") or "")
     evidence = layer.get("frame_evidence") if isinstance(layer.get("frame_evidence"), dict) else {}
-    return backend in {"motion_canvas_sequence", "motion_canvas_video", "pillow_sequence"} and bool(evidence)
+    return backend in {"motion_canvas_sequence", "motion_canvas_video", "remotion_sequence", "remotion_video", "pillow_sequence"} and bool(evidence)

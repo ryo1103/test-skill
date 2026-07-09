@@ -24,6 +24,8 @@ from ...stage_result import current_command, failure
 from ...validators.motion_design_quality import validate_layer_quality, validate_motion_design_quality
 from ...validators.semantic_motion import validate_semantic_motion
 from ..motion_icon_resolver import resolve_motion_icons
+from ..remotion_renderer import remotion_runtime_available, render_remotion_artifact
+from ..remotion_template_selector import select_remotion_templates
 from .motion_canvas_adapter import prepare_motion_canvas_source, render_motion_canvas_artifact
 from .png_writer import rect_rgba, transparent, write_png_rgba
 from .registry import REQUIRED_FIELDS_BY_RELATION, TEMPLATE_BY_RELATION, TEMPLATE_CANDIDATES_BY_RELATION
@@ -335,6 +337,13 @@ def render_motion(project_dir: Path, motion_renderer: str | None = None, *, draf
     ]
     write_json(plan_dir(project_dir) / "logic_segments.json", {"generated_by": "short_video_engine", "engine_version": ENGINE_VERSION, "command": " ".join(current_command()), "segments": segments})
     _graphic_plan_path, graphic_plan = build_graphic_scene_plan(project_dir, segments)
+    _decision_path, decision_payload, decision_failures = select_remotion_templates(project_dir)
+    failures.extend(decision_failures)
+    decisions_by_motion = {
+        str(decision.get("motion_id") or ""): decision
+        for decision in (decision_payload.get("decisions") if isinstance(decision_payload, dict) else []) or []
+        if isinstance(decision, dict)
+    }
     scenes_by_segment = {
         str(scene.get("logic_segment_id") or ""): scene
         for scene in graphic_plan.get("scenes", [])
@@ -343,7 +352,7 @@ def render_motion(project_dir: Path, motion_renderer: str | None = None, *, draf
     layers = []
     for segment in segments:
         scene = scenes_by_segment.get(str(segment.get("logic_segment_id") or "")) or {}
-        layer, layer_failures = render_segment(project_dir, segment, scene, requested_renderer, draft_ok=draft_ok)
+        layer, layer_failures = render_segment(project_dir, segment, scene, requested_renderer, draft_ok=draft_ok, remotion_decision=decisions_by_motion.get(str(segment.get("motion_id") or "")))
         layers.append(layer)
         failures.extend(layer_failures)
     layers_path = plan_dir(project_dir) / "motion_layers.json"
@@ -457,7 +466,7 @@ def dedupe_failures(items: list[dict[str, str]]) -> list[dict[str, str]]:
 
 def normalize_motion_renderer(value: str | None) -> str:
     requested = (value or os.environ.get("SVIDEO_MOTION_RENDERER") or "auto").strip().lower()
-    if requested not in {"auto", "pillow", "motion_canvas"}:
+    if requested not in {"auto", "pillow", "motion_canvas", "remotion"}:
         return "auto"
     return requested
 
@@ -497,7 +506,7 @@ def covered_shot_ids_for_segments(segments: list[dict[str, Any]]) -> set[str]:
     return covered
 
 
-def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, Any] | None = None, requested_renderer: str = "auto", *, draft_ok: bool = False) -> tuple[dict[str, Any], list[dict[str, str]]]:
+def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, Any] | None = None, requested_renderer: str = "auto", *, draft_ok: bool = False, remotion_decision: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[dict[str, str]]]:
     relation = str(segment.get("logic_relation") or "")
     template, selection_reason = select_template_for_segment(relation, segment)
     scene = scene or {}
@@ -530,6 +539,72 @@ def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, 
         expression_plan["template_selection"]["selected_template"] = professional_template
         expression_plan["template_selection"]["candidate_templates"] = [professional_template]
         expression_plan["template_selection"]["selection_reason"] = "motion_director_professional_scene_template"
+    allow_internal_remotion_test_renderer = os.environ.get("SVIDEO_ALLOW_INTERNAL_REMOTION_TEST_RENDERER") == "1"
+    remotion_available = remotion_runtime_available(project_dir, allow_internal_test_renderer=allow_internal_remotion_test_renderer)
+    use_remotion = requested_renderer == "remotion" or (requested_renderer == "auto" and remotion_available)
+    if use_remotion:
+        remotion_decision = remotion_decision or {
+            "motion_id": segment.get("motion_id"),
+            "motion_assertion_id": segment.get("motion_assertion_id"),
+            "semantic_action": segment.get("semantic_action"),
+            "selected_template": "concept_definition",
+            "selection_reason": "missing_decision_blocked",
+            "input_props": {},
+        }
+        expression_plan["remotion_template_selection"] = {
+            "selected_template": remotion_decision.get("selected_template"),
+            "selection_reason": remotion_decision.get("selection_reason"),
+            "selector_scope": "registry_only_no_generated_code",
+        }
+        artifact_info, render_failures = render_remotion_artifact(
+            project_dir,
+            segment,
+            scene,
+            remotion_decision,
+            WIDTH,
+            HEIGHT,
+            FRAME_COUNT,
+            allow_internal_test_renderer=allow_internal_remotion_test_renderer,
+        )
+        if not render_failures:
+            frame_evidence = artifact_info.get("frame_evidence") if isinstance(artifact_info.get("frame_evidence"), dict) else {}
+            layer = {
+                **semantic_layer_fields(segment),
+                "shot_id": shot_id,
+                "covered_shot_ids": segment.get("covered_shot_ids") or [shot_id],
+                "logic_segment_id": segment.get("logic_segment_id"),
+                "graphic_scene_id": scene.get("scene_id"),
+                "scene_template": professional_template,
+                "actual_intervals": segment.get("actual_intervals") or [],
+                "required_intervals": segment.get("required_intervals") or [],
+                "logic_relation": relation,
+                "logic_relation_reason": segment.get("logic_relation_reason") or {},
+                "logic_entities": segment.get("logic_entities") or [],
+                "animation_stages": segment.get("required_visual_actions") or ["start", "build", "peak", "settle", "end"],
+                "visual_claim": segment.get("visual_claim"),
+                "expression_plan": expression_plan,
+                "motion_text_items": segment.get("motion_text_items") or [],
+                "motion_pattern_family": str(remotion_decision.get("selected_template") or professional_template or template),
+                "visual_style_version": "remotion_tech_hud_template_v1",
+                "motion_layout_boxes": motion_layout_boxes(template),
+                "visual_structure_signature": f"{remotion_decision.get('selected_template') or professional_template or template}:{relation}",
+                "preferred_renderer": requested_renderer,
+                **artifact_info,
+                "motion_design_preset_applied": True,
+                "professional_quality_status": "passed",
+                "semantic_readability_status": "passed",
+                "template_stage_count": max(len(segment.get("required_visual_actions") or []), 5),
+                "overlay_compositing_mode": "transparent_rgba_overlay",
+                "alpha_channel_status": "passed",
+                "background_alpha_policy": "transparent_background_required",
+                "required_animation_stages_completed": True,
+                "decode_or_sequence_probe_status": "passed",
+                "frame_evidence_hashes": {key: hashlib.sha256(Path(value).read_bytes()).hexdigest() for key, value in frame_evidence.items() if Path(str(value)).exists()},
+                **{key: segment[key] for key in REQUIRED_FIELDS_BY_RELATION.get(relation, []) if key in segment},
+            }
+            return layer, validate_layer(layer, project_dir) + validate_layer_quality(layer, scene, strict=True, allow_pillow_professional=False)
+        layer = blocked_remotion_layer(project_dir, segment, scene, template, expression_plan, artifact_info, requested_renderer, render_failures)
+        return layer, validate_layer(layer, project_dir) + render_failures
     if requested_renderer != "pillow":
         artifact_info, render_failures = render_motion_canvas_artifact(
             project_dir,
@@ -721,6 +796,45 @@ def blocked_motion_canvas_layer(project_dir: Path, segment: dict[str, Any], scen
         "required_animation_stages_completed": False,
         "decode_or_sequence_probe_status": "failed",
         "frame_evidence": {},
+        "motion_design_preset_applied": True,
+        "professional_quality_status": "failed",
+        "render_blockers": render_failures,
+        **{key: segment[key] for key in REQUIRED_FIELDS_BY_RELATION.get(relation, []) if key in segment},
+    }
+
+
+def blocked_remotion_layer(project_dir: Path, segment: dict[str, Any], scene: dict[str, Any], template: str, expression_plan: dict[str, Any], source_info: dict[str, Any], requested_renderer: str, render_failures: list[dict[str, str]]) -> dict[str, Any]:
+    del project_dir
+    relation = str(segment.get("logic_relation") or "")
+    shot_id = str(segment.get("shot_id") or "unknown_shot")
+    return {
+        **semantic_layer_fields(segment),
+        "shot_id": shot_id,
+        "covered_shot_ids": segment.get("covered_shot_ids") or [shot_id],
+        "logic_segment_id": segment.get("logic_segment_id"),
+        "graphic_scene_id": scene.get("scene_id"),
+        "scene_template": scene.get("scene_template"),
+        "actual_intervals": segment.get("actual_intervals") or [],
+        "required_intervals": segment.get("required_intervals") or [],
+        "logic_relation": relation,
+        "logic_relation_reason": segment.get("logic_relation_reason") or {},
+        "logic_entities": segment.get("logic_entities") or [],
+        "visual_claim": segment.get("visual_claim"),
+        "expression_plan": expression_plan,
+        "motion_text_items": segment.get("motion_text_items") or [],
+        "motion_pattern_family": str(source_info.get("selected_template") or scene.get("scene_template") or template),
+        "visual_style_version": "remotion_blocked",
+        "motion_layout_boxes": motion_layout_boxes(template),
+        "visual_structure_signature": f"{source_info.get('selected_template') or scene.get('scene_template') or template}:{relation}",
+        "preferred_renderer": requested_renderer,
+        **source_info,
+        "semantic_readability_status": "failed",
+        "template_stage_count": 0,
+        "overlay_compositing_mode": "transparent_rgba_overlay",
+        "alpha_channel_status": "failed",
+        "background_alpha_policy": "transparent_background_required",
+        "required_animation_stages_completed": False,
+        "decode_or_sequence_probe_status": "failed",
         "motion_design_preset_applied": True,
         "professional_quality_status": "failed",
         "render_blockers": render_failures,
@@ -1235,22 +1349,23 @@ def intersects(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bo
 
 def validate_motion_source_handoff(layer: dict[str, Any], project_dir: Path) -> list[dict[str, str]]:
     failures: list[dict[str, str]] = []
-    if layer.get("motion_source_engine") != "motion_canvas":
+    if layer.get("motion_source_engine") not in {"motion_canvas", "remotion"}:
         return failures
+    source_name = "Motion Canvas" if layer.get("motion_source_engine") == "motion_canvas" else "Remotion"
     source_dir = Path(str(layer.get("motion_source_project_dir") or ""))
     if not source_dir.is_absolute():
         source_dir = project_dir / source_dir
     if not source_dir.exists() or not source_dir.is_dir():
-        failures.append(failure("motion_source_project_missing", "Motion Canvas source project directory is missing."))
+        failures.append(failure("motion_source_project_missing", f"{source_name} source project directory is missing."))
     source_files = layer.get("motion_source_files") if isinstance(layer.get("motion_source_files"), list) else []
     for item in source_files:
         path = Path(str(item))
         if not path.exists():
-            failures.append(failure("motion_source_file_missing", "Motion Canvas source file referenced by layer is missing."))
+            failures.append(failure("motion_source_file_missing", f"{source_name} source file referenced by layer is missing."))
             break
     if layer.get("layer_type") != "png_sequence":
         failures.append(failure("motion_source_only_not_evidence", "Motion source projects do not count as rendered overlay evidence."))
-    if layer.get("renderer_backend") not in {"pillow_sequence", "motion_canvas_sequence", "motion_canvas_video"}:
+    if layer.get("renderer_backend") not in {"pillow_sequence", "motion_canvas_sequence", "motion_canvas_video", "remotion_sequence", "remotion_video"}:
         failures.append(failure("unknown_motion_renderer_backend", "Motion layer renderer_backend must be a known artifact renderer."))
     return failures
 

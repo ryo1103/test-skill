@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--no-render", action="store_true")
     run.add_argument("--allow-fixtures", action="store_true")
     run.add_argument("--enable-asr", action="store_true", help="Allow S1 to run a local ASR producer when no trusted timing input exists")
-    run.add_argument("--motion-renderer", choices=["auto", "pillow", "motion_canvas"], default="auto", help="Preferred S5 motion renderer source. PASS still requires rendered transparent overlay artifacts.")
+    run.add_argument("--motion-renderer", choices=["auto", "pillow", "motion_canvas", "remotion"], default="auto", help="Preferred S5 motion renderer source. PASS still requires rendered transparent overlay artifacts.")
 
     validate_stage_parser = sub.add_parser("validate-stage", help="Validate one stage report")
     validate_stage_parser.add_argument("--project-dir", required=True)
