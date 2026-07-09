@@ -39,6 +39,13 @@
       "required_visual_actions": ["old_limit", "requirement_pressure", "new_solution_expansion"]
     },
     {
+      "template_id": "split_screen_comparison",
+      "component": "SplitScreenComparison",
+      "supports_semantic_actions": ["density_comparison", "before_after_change"],
+      "required_slots": ["old_solution", "new_requirement", "new_solution"],
+      "required_visual_actions": ["old_limit", "requirement_pressure", "new_solution_expansion"]
+    },
+    {
       "template_id": "concept_definition",
       "component": "ConceptDefinition",
       "supports_semantic_actions": ["concept_definition"],
@@ -65,9 +72,9 @@
     "connector_metaphor": "connector_flow",
     "metric_growth": "metric_growth",
     "process_migration": "process_migration",
-    "density_comparison": "density_pressure",
+    "density_comparison": "split_screen_comparison",
     "concept_definition": "concept_definition",
     "cause_to_result": "connector_flow",
-    "before_after_change": "process_migration"
+    "before_after_change": "split_screen_comparison"
   }
 }

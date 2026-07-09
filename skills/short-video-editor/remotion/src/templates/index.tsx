@@ -7,6 +7,7 @@ import {MetricGrowth} from './MetricGrowth';
 import {NegationToConnector} from './NegationToConnector';
 import {NodeRelationTriangle} from './NodeRelationTriangle';
 import {ProcessMigration} from './ProcessMigration';
+import {SplitScreenComparison} from './SplitScreenComparison';
 import {SystemErrorPanel} from './SystemErrorPanel';
 
 export type MotionLayerProps = {
@@ -46,6 +47,7 @@ export const MotionLayer: React.FC<MotionLayerProps> = (props) => {
       {template === 'connector_flow' && <ConnectorFlow {...props} />}
       {template === 'metric_growth' && <MetricGrowth {...props} />}
       {template === 'process_migration' && <ProcessMigration {...props} />}
+      {template === 'split_screen_comparison' && <SplitScreenComparison {...props} />}
       {template === 'density_pressure' && <DensityPressure {...props} />}
       {template === 'concept_definition' && <ConceptDefinition {...props} />}
       {template === 'system_error_panel' && <SystemErrorPanel {...props} />}
