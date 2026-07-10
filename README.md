@@ -96,10 +96,13 @@ The engine runs subtitle readability planning before visual planning:
 - `S2_visual_plan`: compile shot roles using script units, subtitle timing, and subtitle layout beats.
 - `S3_asset_sourcing`: materialize distinct relevant local B-roll videos.
 - `S4_base_timeline`: render the base plate from talking head and B-roll only.
+- `S4_5_motion_icon_preparation`: generate/localize sanitized SVG semantic icons; it never reads B-roll frames.
 - `S5_motion_overlay`: render deterministic logic motion artifacts.
 - `S6_text_layout`: render title/subtitle ASS/SRT and layout evidence from the S1.5 plan.
 - `S7_process_validation`: create probe render and representative frames.
 - `S8_final_render_and_validation`: render final MP4, QC frames, edit package, and production acceptance.
+
+Strict S5 motion uses localized translucent backdrops, semantic SVG icons, and staged node-to-node relationships. Global decorative frames, unmotivated full-width connector lines, text-glyph arrows, and generic English template chrome cannot receive professional PASS.
 
 ## Canonical Usage
 

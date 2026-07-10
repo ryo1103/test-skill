@@ -203,10 +203,15 @@ def validate_stage(project_dir: Path, stage: str, draft_ok: bool = False) -> Sta
         rows = read_manifest(plan_dir(project_dir) / "edit_manifest.csv")
         failures.extend(audit_manifest(project_dir, rows))
         failures.extend(audit_output_duration(project_dir, output_dir(project_dir) / "base_plate.mp4", rows))
+    if stage == "S4_5_motion_icon_preparation" and status == PASS and not failures:
+        from .validators.motion_icons import validate_motion_icons
+
+        failures.extend(validate_motion_icons(project_dir, require_layers=False))
     if stage == "S5_motion_overlay" and status == PASS and not failures:
         from .producers.motion_renderer.renderer import validate_layer
         from .validators.motion_design_quality import validate_motion_design_quality
         from .validators.semantic_motion import validate_semantic_motion
+        from .validators.motion_icons import validate_motion_icons
 
         payload = read_json(plan_dir(project_dir) / "motion_layers.json", {})
         layers = payload.get("layers") if isinstance(payload, dict) else []
@@ -217,6 +222,7 @@ def validate_stage(project_dir: Path, stage: str, draft_ok: bool = False) -> Sta
                 failures.extend(validate_layer(layer, project_dir))
         failures.extend(validate_motion_design_quality(project_dir, strict=not draft_ok, allow_pillow_professional=False))
         failures.extend(validate_semantic_motion(project_dir))
+        failures.extend(validate_motion_icons(project_dir, require_layers=True))
     if stage == "S6_text_layout" and status == PASS and not failures:
         from .producers.text_overlay_renderer import validate_text_layout
 

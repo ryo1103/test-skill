@@ -2,122 +2,143 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .. import ENGINE_VERSION
-from ..contracts import load_contract, write_json
+from ..contracts import load_contract, read_json, write_json
 from ..paths import plan_dir, skill_root
-from ..stage_result import current_command
+from ..stage_result import current_command, failure
+
+GENERATOR_VERSION = "motion_icon_generator_v2"
+VIEW_BOX = "0 0 24 24"
+FORBIDDEN_SVG_RE = re.compile(r"<(?:script|foreignObject|iframe|image|video|audio)\b|\bon\w+\s*=|javascript:|(?:xlink:)?href\s*=\s*['\"](?:https?:|//|data:)", re.I)
+ALLOWED_SVG_RE = re.compile(r"</?(?:svg|g|path|rect|circle|ellipse|line|polyline|polygon)\b[^>]*>", re.I)
 
 
-def resolve_motion_icons(project_dir: Path, assertions_payload: dict[str, Any]) -> tuple[Path, dict[str, Any], list[dict[str, str]]]:
+def resolve_motion_icons(project_dir: Path, assertions_payload: dict[str, Any] | None = None, *, no_network: bool = False) -> tuple[Path, dict[str, Any], list[dict[str, str]]]:
+    """Materialize only local SVG icon assets for S4.5. Never inspect S4 assets."""
+    assertions_payload = assertions_payload or read_json(plan_dir(project_dir) / "motion_assertions.json", {})
+    requests_payload = read_json(plan_dir(project_dir) / "motion_icon_requests.json", {})
     icon_map = load_contract("motion_icon_map.json")
     semantic_map = icon_map.get("semantic_icon_map") if isinstance(icon_map.get("semantic_icon_map"), dict) else {}
-    assertions = assertions_payload.get("assertions") if isinstance(assertions_payload, dict) else []
-    assertions = assertions if isinstance(assertions, list) else []
+    requests = requests_payload.get("requests") if isinstance(requests_payload, dict) else []
+    if not isinstance(requests, list):
+        requests = requests_from_assertions(assertions_payload, semantic_map)
+    generated_root = project_dir / "assets" / "motion" / "icons" / "generated"
+    downloaded_root = project_dir / "assets" / "motion" / "icons" / "downloaded"
+    public_root = project_dir / "work" / "remotion_public" / "icons"
+    for directory in (generated_root, downloaded_root, public_root):
+        directory.mkdir(parents=True, exist_ok=True)
     records_by_key: dict[str, dict[str, Any]] = {}
     icons_by_assertion: dict[str, dict[str, Any]] = {}
-    for assertion in assertions:
-        if not isinstance(assertion, dict):
+    failures: list[dict[str, str]] = []
+    for request in requests:
+        if not isinstance(request, dict) or not str(request.get("slot") or ""):
             continue
-        assertion_id = str(assertion.get("motion_assertion_id") or "")
-        slots = assertion.get("slots") if isinstance(assertion.get("slots"), dict) else {}
-        slot_icons: dict[str, Any] = {}
-        for slot_name, slot_value in slots.items():
-            slot = slot_value if isinstance(slot_value, dict) else {"text": str(slot_value or ""), "semantic_icon": infer_semantic_key(str(slot_value or ""), semantic_map)}
-            semantic_key = str(slot.get("semantic_icon") or infer_semantic_key(str(slot.get("text") or ""), semantic_map) or "node")
-            record = records_by_key.get(semantic_key)
-            if record is None:
-                record = materialize_icon(project_dir, semantic_key, semantic_map.get(semantic_key, {}))
-                records_by_key[semantic_key] = record
-            slot_icons[str(slot_name)] = {
-                "asset_id": record["asset_id"],
-                "semantic_key": semantic_key,
-                "local_path": record["local_path"],
-                "source": record["source"],
-                "fallback_symbol": record["fallback_symbol"],
-            }
+        semantic_key = str(request.get("semantic_key") or request.get("fallback_semantic_key") or "generic_concept")
+        config = semantic_map.get(semantic_key) if isinstance(semantic_map.get(semantic_key), dict) else semantic_map.get("generic_concept", {})
+        if semantic_key not in semantic_map:
+            semantic_key = "generic_concept" if "generic_concept" in semantic_map else "node"
+            config = semantic_map.get(semantic_key, {})
+        record = records_by_key.get(semantic_key)
+        if record is None:
+            record, record_failures = materialize_icon(project_dir, semantic_key, config if isinstance(config, dict) else {}, no_network=no_network)
+            records_by_key[semantic_key] = record
+            failures.extend(record_failures)
+        assertion_id = str(request.get("motion_assertion_id") or "")
         if assertion_id:
-            icons_by_assertion[assertion_id] = slot_icons
+            icons_by_assertion.setdefault(assertion_id, {})[str(request["slot"])] = {
+                "icon_id": record["icon_id"], "semantic_key": record["semantic_key"], "public_path": record["public_path"],
+            }
     payload = {
-        "generated_by": "short_video_engine",
-        "engine_version": ENGINE_VERSION,
-        "contract": icon_map.get("contract_id", "motion_icon_map_v1"),
-        "command": " ".join(current_command()),
-        "usage_policy": "motion_overlay_icons_only_not_s3_broll",
-        "assets": sorted(records_by_key.values(), key=lambda item: item["asset_id"]),
+        "generated_by": "short_video_engine", "engine_version": ENGINE_VERSION, "generator_version": GENERATOR_VERSION,
+        "command": " ".join(current_command()), "network_disabled": no_network,
+        "usage_policy": "motion_overlay_icons_only_not_s3_broll", "icons": sorted(records_by_key.values(), key=lambda item: item["icon_id"]),
         "icons_by_assertion": icons_by_assertion,
     }
-    path = plan_dir(project_dir) / "motion_asset_manifest.json"
+    path = plan_dir(project_dir) / "motion_icon_manifest.json"
     write_json(path, payload)
-    return path, payload, []
+    write_json(plan_dir(project_dir) / "motion_icon_preparation_report.json", {
+        "generated_by": "short_video_engine", "status": "PASS" if not failures else "FINAL_BLOCKED", "icon_count": len(records_by_key),
+        "source_types": sorted({item["source_type"] for item in records_by_key.values()}), "failure_codes": [item["code"] for item in failures],
+    })
+    return path, payload, failures
 
 
-def materialize_icon(project_dir: Path, semantic_key: str, config: dict[str, Any]) -> dict[str, Any]:
-    fallback_symbol = str(config.get("fallback_symbol") or semantic_key)
+def requests_from_assertions(assertions_payload: dict[str, Any], semantic_map: dict[str, Any]) -> list[dict[str, Any]]:
+    requests: list[dict[str, Any]] = []
+    for assertion in assertions_payload.get("assertions", []) if isinstance(assertions_payload, dict) else []:
+        if not isinstance(assertion, dict):
+            continue
+        for slot, value in (assertion.get("slots") or {}).items():
+            text = str(value.get("text") if isinstance(value, dict) else value or "")
+            key = str(value.get("semantic_icon") if isinstance(value, dict) else "") or infer_semantic_key(text, semantic_map)
+            requests.append({"request_id": f"icon_request_{len(requests)+1:03d}", "motion_id": assertion.get("motion_id"), "motion_assertion_id": assertion.get("motion_assertion_id"), "slot": slot, "text": text, "semantic_key": key, "required": True, "fallback_semantic_key": "node", "style_family": "monoline_hud"})
+    return requests
+
+
+def materialize_icon(project_dir: Path, semantic_key: str, config: dict[str, Any], *, no_network: bool) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    del no_network  # Generated SVG is the production default; remote SVG is intentionally optional.
     local_candidate = skill_root() / "assets" / "motion" / "icons" / f"{semantic_key}.svg"
-    if local_candidate.exists():
-        path = local_candidate
-        source = "local_icon"
-    else:
-        path = plan_dir(project_dir) / "motion_icons" / f"{semantic_key}.svg"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(fallback_svg(fallback_symbol), encoding="utf-8")
-        source = "bundled_fallback"
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return {
-        "asset_id": f"motion_icon_{sanitize_key(semantic_key)}",
-        "semantic_key": semantic_key,
-        "local_path": str(path),
-        "source": source,
-        "sha256": digest,
-        "usage": "motion_overlay_icon",
-        "fallback_symbol": fallback_symbol,
-    }
+    source_type = "bundled_svg" if local_candidate.exists() else "generated_svg"
+    content = local_candidate.read_text(encoding="utf-8") if local_candidate.exists() else generated_svg(semantic_key)
+    if not sanitize_svg(content):
+        content, source_type = generated_svg("generic_concept"), "generated_svg"
+    digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    filename = f"{sanitize_key(semantic_key)}_{digest[:8]}.svg"
+    local_path = project_dir / "assets" / "motion" / "icons" / ("generated" if source_type == "generated_svg" else "bundled") / filename
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_text(content, encoding="utf-8")
+    public_path = project_dir / "work" / "remotion_public" / "icons" / filename
+    if not public_path.exists() or hashlib.sha256(public_path.read_bytes()).hexdigest() != digest:
+        shutil.copy2(local_path, public_path)
+    return ({
+        "icon_id": f"motion_icon_{sanitize_key(semantic_key)}_{digest[:8]}", "semantic_key": semantic_key, "source_type": source_type,
+        "provider": "short_video_engine" if source_type == "generated_svg" else "bundled_short_video_editor", "icon_collection": "monoline_hud",
+        "icon_name": semantic_key, "source_url": "", "license_or_note": "generated_by_short_video_engine" if source_type == "generated_svg" else "bundled_project_icon",
+        "attribution": "", "downloaded_at": datetime.now(timezone.utc).isoformat(), "local_path": str(local_path), "public_path": f"icons/{filename}",
+        "sha256": digest, "view_box": VIEW_BOX, "style_family": "monoline_hud", "generator_version": GENERATOR_VERSION if source_type == "generated_svg" else "", "sanitization_status": "passed",
+    }, [])
 
 
 def infer_semantic_key(text: str, semantic_map: dict[str, Any]) -> str:
+    lowered = text.lower()
     for key, config in semantic_map.items():
-        keywords = config.get("keywords") if isinstance(config, dict) else []
-        for keyword in keywords if isinstance(keywords, list) else []:
-            if str(keyword).lower() in text.lower():
+        for keyword in config.get("keywords", []) if isinstance(config, dict) else []:
+            if str(keyword).lower() in lowered:
                 return str(key)
-    if re.search(r"输入|input", text, re.I):
-        return "input"
-    if re.search(r"输出|output", text, re.I):
-        return "output"
-    if re.search(r"错误|瓶颈|无法", text):
-        return "warning"
-    return "node"
+    return "generic_concept" if "generic_concept" in semantic_map else "node"
 
 
-def fallback_svg(symbol: str) -> str:
-    shape = sanitize_key(symbol)
-    if shape == "chip":
-        body = "<rect x='22' y='22' width='60' height='60' rx='10'/><rect x='36' y='36' width='32' height='32' rx='5'/><path d='M10 32h12M10 52h12M10 72h12M82 32h12M82 52h12M82 72h12M32 10v12M52 10v12M72 10v12M32 82v12M52 82v12M72 82v12'/><path d='M42 52h20M52 42v20' opacity='.55'/>"
-    elif shape == "module":
-        body = "<rect x='16' y='28' width='72' height='48' rx='9'/><rect x='28' y='40' width='28' height='24' rx='4'/><path d='M62 42h14M62 52h14M62 62h10M16 48H8M88 48h8M16 58H8M88 58h8'/>"
-    elif shape == "connector":
-        body = "<path d='M10 52h28'/><rect x='38' y='30' width='28' height='44' rx='8'/><path d='M66 52h28M28 40v24M76 40v24M46 42h12M46 62h12'/><circle cx='52' cy='52' r='6'/>"
-    elif shape == "input_port":
-        body = "<circle cx='22' cy='52' r='11'/><path d='M36 52h42'/><path d='M62 34l20 18-20 18'/><path d='M22 42v20' opacity='.5'/>"
-    elif shape == "output_port":
-        body = "<path d='M18 52h50'/><path d='M54 34l20 18-20 18'/><circle cx='82' cy='52' r='11'/><path d='M82 42v20' opacity='.5'/>"
-    elif shape == "memory":
-        body = "<rect x='20' y='24' width='64' height='56' rx='8'/><path d='M32 38h40M32 52h40M32 66h30M28 14v10M44 14v10M60 14v10M76 14v10M28 80v10M44 80v10M60 80v10M76 80v10'/>"
-    elif shape == "warning":
-        body = "<path d='M52 12L94 86H10z'/><path d='M52 34v26M52 74v4'/><path d='M30 84h44' opacity='.45'/>"
-    else:
-        body = "<circle cx='52' cy='52' r='32'/><circle cx='52' cy='52' r='10'/><path d='M52 20v14M52 70v14M20 52h14M70 52h14M31 31l10 10M63 63l10 10M73 31L63 41M41 63L31 73'/>"
-    return (
-        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 104 104' fill='none' "
-        "stroke='currentColor' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'>"
-        "<rect x='6' y='6' width='92' height='92' rx='18' opacity='.18'/>"
-        f"{body}</svg>\n"
-    )
+def sanitize_svg(content: str) -> bool:
+    return bool(content and "<svg" in content.lower() and not FORBIDDEN_SVG_RE.search(content) and all(ALLOWED_SVG_RE.fullmatch(tag) for tag in re.findall(r"<[^>]+>", content) if not tag.startswith("<?")))
+
+
+def generated_svg(semantic_key: str) -> str:
+    # Distinct, deterministic monoline silhouettes. No text, media, filters, or remote references.
+    shapes = {
+        "chip": "<rect x='6' y='6' width='12' height='12' rx='2'/><rect x='9' y='9' width='6' height='6' rx='1'/><path d='M3 8h3M3 12h3M3 16h3M18 8h3M18 12h3M18 16h3M8 3v3M12 3v3M16 3v3M8 18v3M12 18v3M16 18v3'/>",
+        "optical_module": "<rect x='3' y='8' width='15' height='8' rx='2'/><path d='M18 10h3v4h-3M6 10h5v4H6M3 11H1m2 2H1'/>",
+        "connector": "<path d='M3 12h5m8 0h5'/><rect x='8' y='7' width='8' height='10' rx='2'/><circle cx='12' cy='12' r='2'/><path d='M10 9v6m4-6v6'/>",
+        "server": "<rect x='4' y='4' width='16' height='6' rx='1'/><rect x='4' y='14' width='16' height='6' rx='1'/><path d='M7 7h.01M7 17h.01M11 7h6M11 17h6'/>",
+        "database": "<ellipse cx='12' cy='5' rx='7' ry='3'/><path d='M5 5v7c0 2 14 2 14 0V5m-14 7v7c0 2 14 2 14 0v-7'/>",
+        "input": "<circle cx='5' cy='12' r='3'/><path d='M8 12h12m-4-4 4 4-4 4'/>", "output": "<path d='M4 12h12m-4-4 4 4-4 4'/><circle cx='19' cy='12' r='3'/>",
+        "warning": "<path d='M12 3 22 20H2z'/><path d='M12 9v5m0 3h.01'/>", "factory": "<path d='M3 20V9l6 4V9l6 4V5h6v15zM7 20v-4m5 4v-4m5 4v-4'/>",
+        "wafer": "<circle cx='12' cy='12' r='8'/><circle cx='12' cy='12' r='3'/><path d='M12 4v3m0 10v3M4 12h3m10 0h3M6.5 6.5l2 2m7 7 2 2m0-11-2 2m-7 7-2 2'/>",
+        "fiber": "<path d='M4 17c5-9 9-9 16-10M4 20c5-7 9-7 16-8'/><circle cx='4' cy='18.5' r='2'/><circle cx='20' cy='6.5' r='2'/>",
+        "cost": "<circle cx='12' cy='12' r='8'/><path d='M15 9c-1-2-5-2-5 0 0 3 5 1 5 4 0 2-4 2-5 0m2-8v14'/>",
+        "efficiency": "<path d='M4 16 9 11l3 3 8-8'/><path d='M15 6h5v5'/><circle cx='6' cy='18' r='2'/>", "risk": "<path d='M3 3h18v18H3z'/><path d='M12 7v6m0 3h.01'/>",
+        "trend_up": "<path d='M3 17 9 11l4 3 8-8'/><path d='M16 6h5v5'/>", "trend_down": "<path d='m3 7 6 6 4-3 8 8'/><path d='M16 18h5v-5'/>",
+        "network": "<circle cx='5' cy='12' r='2'/><circle cx='19' cy='6' r='2'/><circle cx='19' cy='18' r='2'/><path d='m7 12 10-6M7 12l10 6'/>", "memory": "<rect x='5' y='6' width='14' height='12' rx='2'/><path d='M8 9h8m-8 3h8m-8 3h5'/>",
+        "old_solution": "<path d='M5 4h14v16H5z'/><path d='m8 8 8 8m0-8-8 8'/>", "new_solution": "<path d='M5 12l4 4 10-10'/><circle cx='12' cy='12' r='9'/>",
+        "cause": "<circle cx='7' cy='12' r='3'/><path d='M10 12h10m-4-4 4 4-4 4'/>", "mechanism": "<circle cx='12' cy='12' r='3'/><path d='M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1'/>", "result": "<path d='M4 12h10m-4-4 4 4-4 4'/><path d='M17 6h3v12h-3'/>",
+    }
+    body = shapes.get(semantic_key, "<circle cx='12' cy='12' r='7'/><circle cx='12' cy='12' r='2'/><path d='M12 3v3m0 12v3M3 12h3m12 0h3'/>")
+    return f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='{VIEW_BOX}' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>{body}</svg>\n"
 
 
 def sanitize_key(value: str) -> str:
-    clean = re.sub(r"[^a-zA-Z0-9_]+", "_", str(value or "").lower()).strip("_")
-    return clean or "node"
+    return re.sub(r"[^a-zA-Z0-9_]+", "_", str(value or "").lower()).strip("_") or "generic_concept"

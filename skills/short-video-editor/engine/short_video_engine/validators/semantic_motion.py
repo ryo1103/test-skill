@@ -13,7 +13,7 @@ def validate_semantic_motion(project_dir: Path) -> list[dict[str, str]]:
     index_payload = read_json(plan_dir(project_dir) / "required_motion_index.json", {})
     assertions_payload = read_json(plan_dir(project_dir) / "motion_assertions.json", {})
     layers_payload = read_json(plan_dir(project_dir) / "motion_layers.json", {})
-    motion_assets_payload = read_json(plan_dir(project_dir) / "motion_asset_manifest.json", {})
+    motion_assets_payload = read_json(plan_dir(project_dir) / "motion_icon_manifest.json", {})
     contract = load_contract("semantic_motion_contract.json")
     actions = contract.get("semantic_actions") if isinstance(contract.get("semantic_actions"), dict) else {}
     required = index_payload.get("required_motions") if isinstance(index_payload, dict) else None
@@ -96,8 +96,8 @@ def validate_semantic_layer(layer: dict[str, Any], assertion_by_id: dict[str, di
 
 def validate_motion_icons(assertion_id: str, action_contract: dict[str, Any], slots: dict[str, Any], layer: dict[str, Any], motion_assets_payload: dict[str, Any]) -> list[dict[str, str]]:
     failures: list[dict[str, str]] = []
-    assets = motion_assets_payload.get("assets") if isinstance(motion_assets_payload, dict) else []
-    asset_by_id = {str(asset.get("asset_id") or ""): asset for asset in assets if isinstance(asset, dict)}
+    assets = motion_assets_payload.get("icons") if isinstance(motion_assets_payload, dict) else []
+    asset_by_id = {str(asset.get("icon_id") or asset.get("asset_id") or ""): asset for asset in assets if isinstance(asset, dict)}
     semantic_keys = {str(asset.get("semantic_key") or "") for asset in assets if isinstance(asset, dict)}
     layer_icons = layer.get("semantic_icons") if isinstance(layer.get("semantic_icons"), dict) else {}
     for slot_name in action_contract.get("required_slots", []):
@@ -107,13 +107,13 @@ def validate_motion_icons(assertion_id: str, action_contract: dict[str, Any], sl
             failures.append(failure("motion_icon_missing", f"{assertion_id} slot {slot_name} has no semantic_icon."))
             continue
         layer_icon = layer_icons.get(slot_name) if isinstance(layer_icons, dict) else None
-        asset_id = str(layer_icon.get("asset_id") or "") if isinstance(layer_icon, dict) else ""
+        asset_id = str(layer_icon.get("icon_id") or layer_icon.get("asset_id") or "") if isinstance(layer_icon, dict) else ""
         if not asset_id or asset_id not in asset_by_id or semantic_icon not in semantic_keys:
             failures.append(failure("motion_icon_missing", f"{assertion_id} slot {slot_name} semantic_icon {semantic_icon} is not resolved in motion_asset_manifest.json."))
             continue
         asset = asset_by_id[asset_id]
         local_path = Path(str(asset.get("local_path") or ""))
-        if not local_path.exists() or str(asset.get("usage") or "") != "motion_overlay_icon":
+        if not local_path.exists() or str(asset.get("source_type") or "") not in {"generated_svg", "bundled_svg", "downloaded_svg"}:
             failures.append(failure("motion_icon_missing", f"{assertion_id} slot {slot_name} resolved icon asset is missing or has invalid usage."))
     return failures
 

@@ -34,6 +34,8 @@ Rules:
 
 - Codex must call the engine for production work.
 - Pipeline order includes `S1_5_subtitle_layout_planning` between S1 and S2; S1 owns exact source/timing cues, S1.5 owns readable subtitle beats, and S2 must plan shots from those beats.
+- Pipeline order includes `S4_5_motion_icon_preparation` between S4 and S5; it may materialize only sanitized local SVG semantic icons and must never derive motion assets from B-roll.
+- Strict S5 motion must use localized readability backdrops and semantic node-to-node animation. Global decorative outer frames, unmotivated full-width connector lines, text-glyph arrows, and generic English template chrome cannot receive professional PASS.
 - `--enable-asr` may run local faster-whisper to produce `asr_word_timestamps.json`; guessed/proportional timing remains draft-only.
 - Codex must not manually create or edit PASS reports.
 - Codex must not treat request files, queued rows, dummy metadata, static images, generated placeholders, or metadata-only files as production evidence.

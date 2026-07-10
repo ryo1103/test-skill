@@ -1,46 +1,33 @@
 {
   "generated_by": "short_video_engine",
-  "contract_id": "motion_icon_map_v1",
+  "contract_id": "motion_icon_map_v2",
   "semantic_icon_map": {
-    "chip": {
-      "keywords": ["芯片", "chip", "processor"],
-      "role": "device_category",
-      "fallback_symbol": "chip"
-    },
-    "optical_module": {
-      "keywords": ["光模块", "optical module", "transceiver"],
-      "role": "module_category",
-      "fallback_symbol": "module"
-    },
-    "connector": {
-      "keywords": ["连接器", "光纤连接器", "GlassBridge", "桥"],
-      "role": "accepted_definition",
-      "fallback_symbol": "connector"
-    },
-    "input": {
-      "keywords": ["输入", "input"],
-      "role": "flow_endpoint",
-      "fallback_symbol": "input_port"
-    },
-    "output": {
-      "keywords": ["输出", "output"],
-      "role": "flow_endpoint",
-      "fallback_symbol": "output_port"
-    },
-    "node": {
-      "keywords": ["节点", "node"],
-      "role": "network_node",
-      "fallback_symbol": "node"
-    },
-    "memory": {
-      "keywords": ["HBM", "DRAM", "SSD", "内存", "存储"],
-      "role": "memory_storage",
-      "fallback_symbol": "memory"
-    },
-    "warning": {
-      "keywords": ["错误", "缺乏", "无法", "瓶颈"],
-      "role": "status_warning",
-      "fallback_symbol": "warning"
-    }
+    "chip": {"semantic_key":"chip","keywords":["芯片","chip","processor"],"aliases":["asic","gpu"],"fallback_symbol":"chip","generator_shape":"chip","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "optical_module": {"semantic_key":"optical_module","keywords":["光模块","optical module","transceiver"],"aliases":["module"],"fallback_symbol":"optical_module","generator_shape":"optical_module","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "connector": {"semantic_key":"connector","keywords":["连接器","光纤连接器","GlassBridge","桥"],"aliases":["bridge","fau"],"fallback_symbol":"connector","generator_shape":"connector","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "server":{"semantic_key":"server","keywords":["服务器","server"],"aliases":[],"fallback_symbol":"server","generator_shape":"server","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "database":{"semantic_key":"database","keywords":["数据库","database","数据中心"],"aliases":[],"fallback_symbol":"database","generator_shape":"database","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "network":{"semantic_key":"network","keywords":["网络","network","节点"],"aliases":[],"fallback_symbol":"network","generator_shape":"network","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "input":{"semantic_key":"input","keywords":["输入","input"],"aliases":[],"fallback_symbol":"input","generator_shape":"input","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "output":{"semantic_key":"output","keywords":["输出","output"],"aliases":[],"fallback_symbol":"output","generator_shape":"output","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "memory":{"semantic_key":"memory","keywords":["HBM","DRAM","SSD","内存","存储"],"aliases":[],"fallback_symbol":"memory","generator_shape":"memory","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "warning":{"semantic_key":"warning","keywords":["错误","缺乏","无法","瓶颈","风险"],"aliases":["risk"],"fallback_symbol":"warning","generator_shape":"warning","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"danger","stroke_policy":"round_1.8"},
+    "factory":{"semantic_key":"factory","keywords":["工厂","制造"],"aliases":[],"fallback_symbol":"factory","generator_shape":"factory","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "wafer":{"semantic_key":"wafer","keywords":["晶圆","wafer"],"aliases":[],"fallback_symbol":"wafer","generator_shape":"wafer","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "fiber":{"semantic_key":"fiber","keywords":["光纤","fiber"],"aliases":[],"fallback_symbol":"fiber","generator_shape":"fiber","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "cost":{"semantic_key":"cost","keywords":["成本","cost"],"aliases":[],"fallback_symbol":"cost","generator_shape":"cost","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"danger","stroke_policy":"round_1.8"},
+    "efficiency":{"semantic_key":"efficiency","keywords":["效率","efficiency"],"aliases":[],"fallback_symbol":"efficiency","generator_shape":"efficiency","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "risk":{"semantic_key":"risk","keywords":["风险","risk"],"aliases":[],"fallback_symbol":"risk","generator_shape":"risk","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"danger","stroke_policy":"round_1.8"},
+    "timeline":{"semantic_key":"timeline","keywords":["时间线","timeline"],"aliases":[],"fallback_symbol":"trend_up","generator_shape":"trend_up","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "process":{"semantic_key":"process","keywords":["流程","process","步骤"],"aliases":[],"fallback_symbol":"mechanism","generator_shape":"mechanism","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "trend_up":{"semantic_key":"trend_up","keywords":["增长","增加","上升"],"aliases":[],"fallback_symbol":"trend_up","generator_shape":"trend_up","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "trend_down":{"semantic_key":"trend_down","keywords":["下降","减少"],"aliases":[],"fallback_symbol":"trend_down","generator_shape":"trend_down","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"danger","stroke_policy":"round_1.8"},
+    "old_solution":{"semantic_key":"old_solution","keywords":["旧方案","之前","以前","传统"],"aliases":[],"fallback_symbol":"old_solution","generator_shape":"old_solution","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"danger","stroke_policy":"round_1.8"},
+    "new_solution":{"semantic_key":"new_solution","keywords":["新方案","之后","现在"],"aliases":[],"fallback_symbol":"new_solution","generator_shape":"new_solution","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "cause":{"semantic_key":"cause","keywords":["原因","因为","导致"],"aliases":[],"fallback_symbol":"cause","generator_shape":"cause","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"danger","stroke_policy":"round_1.8"},
+    "mechanism":{"semantic_key":"mechanism","keywords":["机制","过程"],"aliases":[],"fallback_symbol":"mechanism","generator_shape":"mechanism","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "result":{"semantic_key":"result","keywords":["结果","完成","恢复"],"aliases":[],"fallback_symbol":"result","generator_shape":"result","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentSecondary","stroke_policy":"round_1.8"},
+    "node":{"semantic_key":"node","keywords":["节点","node"],"aliases":[],"fallback_symbol":"node","generator_shape":"node","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"},
+    "generic_concept":{"semantic_key":"generic_concept","keywords":[],"aliases":[],"fallback_symbol":"generic_concept","generator_shape":"generic_concept","icon_family":"monoline_hud","allowed_remote_collections":[],"default_color_token":"accentPrimary","stroke_policy":"round_1.8"}
   }
 }

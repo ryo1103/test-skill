@@ -31,6 +31,11 @@
       "description": "Compile base plate from talking-head and B-roll timeline rows."
     },
     {
+      "id": "S4_5_motion_icon_preparation",
+      "owner": "short_video_engine.stages.s4_5_motion_icon_preparation",
+      "description": "Materialize sanitized local SVG semantic icons for transparent motion overlays."
+    },
+    {
       "id": "S5_motion_overlay",
       "owner": "short_video_engine.stages.s5_motion_overlay",
       "description": "Render real motion overlay artifacts for subtitle-timed logic segments."

@@ -1,5 +1,5 @@
 import React from 'react';
-import {MicroLabel, Panel, fit, useProgress} from '../components/Hud';
+import {IconBlock, MicroLabel, Panel, fit, useProgress} from '../components/Hud';
 import {MotionLayerProps} from '.';
 
 export const SplitScreenComparison: React.FC<MotionLayerProps> = (props) => {
@@ -21,12 +21,11 @@ export const SplitScreenComparison: React.FC<MotionLayerProps> = (props) => {
           height: 390,
           transform: `translateX(${-(1 - left) * 80}px)`,
           opacity: left,
-          background: 'linear-gradient(135deg, rgba(28,79,168,0.92), rgba(33,95,213,0.88))',
-          boxShadow: '0 0 34px rgba(78,171,255,0.36)',
+          borderRadius: 16, background: 'rgba(16,74,154,0.72)', boxShadow: '0 12px 30px rgba(0,0,0,.26)',
         }}
       >
         <MicroLabel x={205} y={210} text={fit(leftTitle, 'Panel A')} color="#ffffff" size={38} />
-        <MicroLabel x={205} y={288} text="CURRENT" color="#bde6ff" size={22} />
+        <div style={{position: 'absolute', left: 164, top: 110}}><IconBlock accent="#bde6ff" icon={props.icons?.old_solution || props.icons?.old_step || props.icons?.before} /></div>
       </div>
       <div
         style={{
@@ -37,18 +36,14 @@ export const SplitScreenComparison: React.FC<MotionLayerProps> = (props) => {
           height: 390,
           transform: `translateX(${(1 - right) * 80}px)`,
           opacity: right,
-          background: 'linear-gradient(135deg, rgba(107,34,205,0.92), rgba(139,52,235,0.88))',
-          boxShadow: '0 0 34px rgba(174,95,255,0.36)',
+          borderRadius: 16, background: 'rgba(106,46,194,0.72)', boxShadow: '0 12px 30px rgba(0,0,0,.26)',
         }}
       >
         <MicroLabel x={207} y={210} text={fit(rightTitle, 'Panel B')} color="#ffffff" size={38} />
-        <MicroLabel x={207} y={288} text="NEXT" color="#dec7ff" size={22} />
+        <div style={{position: 'absolute', left: 166, top: 110}}><IconBlock accent="#dec7ff" icon={props.icons?.new_solution || props.icons?.new_step || props.icons?.after} /></div>
       </div>
       <div style={{position: 'absolute', left: 443, top: 88, width: 4, height: 390 * line, background: 'rgba(255,255,255,0.35)'}} />
-      <div style={{position: 'absolute', left: 34, top: 478, width: 824, height: 126, background: 'rgba(4, 10, 18, 0.78)'}} />
-      <MicroLabel x={180} y={510} text="SPLIT SCREEN" color="#ffffff" size={30} />
-      <MicroLabel x={492} y={516} text={fit(axis, '对比轴')} color="#86c7ff" size={28} />
-      <div style={{position: 'absolute', left: 72, top: 530, width: 14, height: 14, borderRadius: 8, background: '#d6cb54'}} />
+      <MicroLabel x={446} y={510} text={fit(axis, '对比轴')} color="#d9f8ff" size={28} />
     </Panel>
   );
 };

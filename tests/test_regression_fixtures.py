@@ -78,6 +78,7 @@ def request_only_assets_project(project: Path) -> None:
 def fake_motion_static_png_project(project: Path) -> None:
     prepare_s2_project(project, script="开场介绍一句。不是成本问题而是效率问题。最后总结观点。", duration=3.0)
     run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S2_visual_plan", "--to-stage", "S2_visual_plan"], check=True)
+    run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S4_5_motion_icon_preparation", "--to-stage", "S4_5_motion_icon_preparation"], check=True)
     run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
     mutate_json(project / "work" / "plan" / "motion_layers.json", lambda payload: payload["layers"][0].update({"layer_type": "static_png"}))
 

@@ -56,6 +56,18 @@ def validate_scene(scene: dict[str, Any]) -> list[dict[str, str]]:
         failures.append(failure("large_empty_panel_detected", "Graphic scene must prove no_large_empty_panel=true."))
     if target.get("no_title_subtitle_overlap") is not True:
         failures.append(failure("title_subtitle_overlap_risk", "Graphic scene must prove no_title_subtitle_overlap=true."))
+    production_targets = {
+        "no_global_outer_frame": ("motion_global_outer_frame_forbidden", "Professional motion cannot use a global decorative outer frame."),
+        "no_unmotivated_full_width_connector": ("motion_unmotivated_full_width_connector", "Connectors must express node-to-node semantics, not span the scene as decoration."),
+        "no_glyph_arrow": ("motion_glyph_arrow_forbidden", "Professional motion cannot use text glyphs such as > or › as drawn arrows."),
+        "localized_template_chrome": ("motion_template_chrome_not_localized", "Template chrome must use localized semantic labels instead of generic English UI copy."),
+        "local_readability_backdrop": ("motion_local_backdrop_required", "Motion must use a local readability backdrop rather than a global frame."),
+    }
+    for key, (code, message) in production_targets.items():
+        if target.get(key) is not True:
+            failures.append(failure(code, message))
+    if scene.get("scene_template") == "connector_flow_scene" and target.get("connector_animation_policy") != "segmented_sequential_node_to_node":
+        failures.append(failure("motion_connector_animation_policy_invalid", "Connector flow must build sequential node-to-node segments."))
     if str(scene.get("logic_relation") or "") == "final_summary" and str(scene.get("intensity") or "") == "high":
         failures.append(failure("final_summary_high_intensity_motion", "Final summary scenes cannot use high intensity motion."))
     inventory = scene.get("component_inventory") if isinstance(scene.get("component_inventory"), dict) else {}

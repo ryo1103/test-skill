@@ -160,6 +160,7 @@ def mutate_manifest(project: Path, mutator) -> None:
 def prepare_s5_project(project: Path, script: str = "开场介绍一句。不是成本问题而是效率问题。最后总结观点。") -> None:
     prepare_s2_project(project, script=script, duration=2.0)
     run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S2_visual_plan", "--to-stage", "S2_visual_plan"], check=True)
+    run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S4_5_motion_icon_preparation", "--to-stage", "S4_5_motion_icon_preparation"], check=True)
 
 
 def mutate_motion_layers(project: Path, mutator) -> None:
@@ -209,6 +210,7 @@ def prepare_s7_project(project: Path) -> None:
     write_asset_manifest(project, records)
     run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S3_asset_sourcing", "--to-stage", "S3_asset_sourcing"], check=True)
     run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S4_base_timeline", "--to-stage", "S4_base_timeline"], check=True)
+    run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S4_5_motion_icon_preparation", "--to-stage", "S4_5_motion_icon_preparation"], check=True)
     run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
     run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S6_text_layout", "--to-stage", "S6_text_layout"], check=True)
     run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S7_process_validation", "--to-stage", "S7_process_validation"], check=True)
@@ -618,6 +620,17 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("large_empty_panel_detected", result.stdout)
 
+    def test_s5_legacy_outer_frame_and_glyph_arrow_quality_targets_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            mutate_graphic_scene_plan(project, lambda payload: payload["scenes"][0]["quality_target"].update({"no_global_outer_frame": False, "no_glyph_arrow": False}))
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("motion_global_outer_frame_forbidden", result.stdout)
+            self.assertIn("motion_glyph_arrow_forbidden", result.stdout)
+
     def test_s5_missing_stagger_fails_motion_design_quality(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "project"
@@ -785,18 +798,19 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("motion_assertion_missing", result.stdout)
 
-    def test_s5_missing_icon_file_uses_fallback_symbol(self) -> None:
+    def test_s45_missing_local_icon_materializes_generated_svg_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "project"
             prepare_s5_project(project, script="开场介绍一句。GlassBridge它不是一颗芯片，也不是新的光模块，而是一个光纤连接器。最后总结观点。")
             run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
-            manifest = read_json(project / "work" / "plan" / "motion_asset_manifest.json")
-            sources = {asset["semantic_key"]: asset["source"] for asset in manifest["assets"]}
-            self.assertEqual(sources["chip"], "bundled_fallback")
-            self.assertEqual(sources["optical_module"], "bundled_fallback")
-            self.assertEqual(sources["connector"], "bundled_fallback")
-            for asset in manifest["assets"]:
-                self.assertEqual(asset["usage"], "motion_overlay_icon")
+            manifest = read_json(project / "work" / "plan" / "motion_icon_manifest.json")
+            sources = {asset["semantic_key"]: asset["source_type"] for asset in manifest["icons"]}
+            self.assertEqual(sources["chip"], "generated_svg")
+            self.assertEqual(sources["optical_module"], "generated_svg")
+            self.assertEqual(sources["connector"], "generated_svg")
+            for asset in manifest["icons"]:
+                self.assertEqual(asset["sanitization_status"], "passed")
+                self.assertFalse(Path(asset["public_path"]).is_absolute())
                 self.assertTrue(Path(asset["local_path"]).exists())
             layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
             self.assertEqual(layer["renderer_backend"], "motion_canvas_sequence")

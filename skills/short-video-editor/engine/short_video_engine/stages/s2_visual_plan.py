@@ -2,8 +2,9 @@ from pathlib import Path
 
 from ..contracts import read_json, write_json
 from ..paths import plan_dir
-from ..compiler.motion_assertion_compiler import build_required_motion_index
+from ..compiler.motion_assertion_compiler import build_required_motion_index, compile_motion_assertions
 from ..compiler.shot_plan_compiler import write_shot_plan
+from ..producers.motion_icon_planner import plan_motion_icon_requests
 from ..stage_result import FAIL, FINAL_BLOCKED, PASS, StageResult, current_command, failure
 
 
@@ -23,5 +24,8 @@ def run(project_dir: Path, **_: object) -> StageResult:
     path, failures = write_shot_plan(project_dir)
     index_path, _index_payload, index_failures = build_required_motion_index(project_dir, overwrite=True)
     failures.extend(index_failures)
+    assertions_path, assertions_payload, assertion_failures = compile_motion_assertions(project_dir)
+    failures.extend(assertion_failures)
+    icon_requests_path, _requests_payload = plan_motion_icon_requests(project_dir, assertions_payload)
     status = PASS if not failures else FINAL_BLOCKED
-    return StageResult("S2_visual_plan", status, "s2_visual_plan", current_command(), failures=failures, inputs=[plan_dir(project_dir) / "script_units.json", plan_dir(project_dir) / "subtitle_cues.json", plan_dir(project_dir) / "subtitle_layout_cues.json"], outputs=[path, index_path])
+    return StageResult("S2_visual_plan", status, "s2_visual_plan", current_command(), failures=failures, inputs=[plan_dir(project_dir) / "script_units.json", plan_dir(project_dir) / "subtitle_cues.json", plan_dir(project_dir) / "subtitle_layout_cues.json"], outputs=[path, index_path, assertions_path, icon_requests_path])

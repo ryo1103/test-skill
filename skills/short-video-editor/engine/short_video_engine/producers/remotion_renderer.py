@@ -29,6 +29,27 @@ def remotion_runtime_available(project_dir: Path, *, allow_internal_test_rendere
     return (root / "node_modules" / ".bin" / "remotion").exists()
 
 
+def prepare_remotion_runtime(project_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Install once per dependency lock hash, never per motion clip."""
+    root = remotion_project_dir()
+    if not root.exists() or not (root / "package.json").exists():
+        return [], [failure("remotion_project_missing", "skills/short-video-editor/remotion is missing.")]
+    lock = root / "package-lock.json"
+    lock_hash = hashlib.sha256(lock.read_bytes()).hexdigest() if lock.exists() else "no_lock"
+    stamp = plan_dir(project_dir) / "remotion_runtime.json"
+    previous = json.loads(stamp.read_text(encoding="utf-8")) if stamp.exists() else {}
+    binary = root / "node_modules" / ".bin" / "remotion"
+    if binary.exists() and previous.get("package_lock_hash") == lock_hash:
+        return [{"step": "npm_install", "skipped": True, "reason": "runtime_lock_hash_unchanged"}], []
+    cmd = ["npm", "ci", "--no-audit", "--no-fund"] if lock.exists() else ["npm", "install", "--no-audit", "--no-fund"]
+    install = run_cmd(cmd, cwd=root)
+    log = command_log("npm_ci" if lock.exists() else "npm_install", install)
+    if install.returncode != 0:
+        return [log], [failure("remotion_install_failed", install.stderr[-1000:] or "npm dependency installation failed.")]
+    stamp.write_text(json.dumps({"generated_by": "short_video_engine", "package_lock_hash": lock_hash, "install_log": log}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return [log], []
+
+
 def render_remotion_artifact(
     project_dir: Path,
     segment: dict[str, Any],
@@ -48,7 +69,7 @@ def render_remotion_artifact(
         "motionId": motion_id,
         "width": width,
         "height": height,
-        "fps": 24,
+        "fps": int((decision.get("input_props") or {}).get("fps") or 30),
         **(decision.get("input_props") if isinstance(decision.get("input_props"), dict) else {}),
     }
     props_path = plan_dir(project_dir) / "remotion_props" / f"{motion_id}.json"
@@ -63,17 +84,19 @@ def render_remotion_artifact(
     root = remotion_project_dir()
     if not root.exists():
         return remotion_source_info(decision, props_path, frame_dir, render_log), [failure("remotion_project_missing", "skills/short-video-editor/remotion is missing.")]
-    install = run_cmd(["npm", "install", "--no-audit", "--no-fund"], cwd=root)
-    render_log.append(command_log("npm_install", install))
-    if install.returncode != 0:
-        return remotion_source_info(decision, props_path, frame_dir, render_log), [failure("remotion_install_failed", install.stderr[-1000:] or "npm install failed for Remotion renderer.")]
+    runtime_log, runtime_failures = prepare_remotion_runtime(project_dir)
+    render_log.extend(runtime_log)
+    if runtime_failures:
+        return remotion_source_info(decision, props_path, frame_dir, render_log), runtime_failures
     out_arg = str(frame_dir)
-    render = run_cmd(["npm", "run", "render", "--", "src/Root.tsx", "MotionLayer", out_arg, "--props", str(props_path), "--sequence"], cwd=root)
+    public_dir = project_dir / "work" / "remotion_public"
+    public_dir.mkdir(parents=True, exist_ok=True)
+    render = run_cmd(["node", "scripts/render-sequence.mjs", "src/Root.tsx", "MotionLayer", out_arg, str(props_path), str(public_dir)], cwd=root)
     render_log.append(command_log("npm_run_render", render))
     if render.returncode != 0:
         return remotion_source_info(decision, props_path, frame_dir, render_log), [failure("remotion_render_failed", render.stderr[-1200:] or "Remotion render command failed.")]
     frames = normalize_rendered_frames(frame_dir)
-    if len(frames) < frame_count:
+    if not frames:
         return remotion_source_info(decision, props_path, frame_dir, render_log), [failure("remotion_render_no_frames", "Remotion render completed but no transparent PNG sequence was found.")]
     return remotion_result(frame_dir, frames, decision, props_path, "npm_remotion_sequence", render_log), []
 
@@ -95,6 +118,8 @@ def remotion_result(frame_dir: Path, frames: list[Path], decision: dict[str, Any
         "png_sequence_dir": str(frame_dir),
         "layer_type": "png_sequence",
         "sequence_frame_count": len(frames),
+        "sequence_fps": int((decision.get("input_props") or {}).get("fps") or 30),
+        "expected_duration_sec": len(frames) / max(1, int((decision.get("input_props") or {}).get("fps") or 30)),
         "frame_evidence": evidence,
     }
 

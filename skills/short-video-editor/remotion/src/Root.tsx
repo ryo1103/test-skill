@@ -1,15 +1,16 @@
 import React from 'react';
-import {Composition} from 'remotion';
+import {CalculateMetadataFunction, Composition} from 'remotion';
 import {registerRoot} from 'remotion';
 import {MotionLayer, MotionLayerProps} from './templates';
 
 export const RemotionRoot: React.FC = () => {
   return (
-    <Composition<MotionLayerProps>
+    <Composition
       id="MotionLayer"
       component={MotionLayer}
+      calculateMetadata={calculateMetadata}
       durationInFrames={72}
-      fps={24}
+      fps={30}
       width={1080}
       height={1920}
       defaultProps={{
@@ -28,6 +29,13 @@ export const RemotionRoot: React.FC = () => {
     />
   );
 };
+
+export const calculateMetadata: CalculateMetadataFunction<MotionLayerProps> = ({props}) => ({
+  durationInFrames: Math.max(1, Math.round(props.durationInFrames || 72)),
+  fps: Math.max(1, Math.round(props.fps || 30)),
+  width: Math.max(1, Math.round(props.width || 1080)),
+  height: Math.max(1, Math.round(props.height || 1920)),
+});
 
 registerRoot(RemotionRoot);
 

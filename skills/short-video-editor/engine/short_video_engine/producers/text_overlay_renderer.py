@@ -310,7 +310,7 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Subtitle,Arial,{font_size},&H00FFFFFF,&H0000E5FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,5,2,2,72,72,260,1
+Style: Subtitle,PingFang SC,{font_size},&H00FFFFFF,&H0000E5FF,&H00121A24,&H80000000,-1,0,0,0,100,100,0,0,1,3,0,2,72,72,260,1
 Style: Title,PingFang SC,{title_font},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,0,8,120,120,120,1
 Style: TitleMask,Arial,24,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 

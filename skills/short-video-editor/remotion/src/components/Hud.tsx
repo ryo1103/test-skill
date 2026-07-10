@@ -1,5 +1,6 @@
 import React from 'react';
 import {interpolate, useCurrentFrame} from 'remotion';
+import {MotionIconRef, SemanticIcon} from './SemanticIcon';
 
 export const fit = (value?: string, fallback = '概念') => String(value || fallback).slice(0, 14);
 
@@ -16,13 +17,9 @@ export const Panel: React.FC<React.PropsWithChildren<{x?: number; y?: number; w?
       top: y,
       width: w,
       height: h,
-      border: `6px solid ${accent}`,
-      background: 'rgba(2, 13, 22, 0.74)',
-      boxShadow: `0 0 42px ${accent}55, inset 0 0 90px rgba(101,231,255,0.12)`,
-      overflow: 'hidden',
+      background: 'transparent', overflow: 'visible',
     }}
   >
-    <div style={{position: 'absolute', inset: 18, borderTop: '3px solid rgba(255,255,255,0.22)', borderBottom: '3px solid rgba(255,255,255,0.10)'}} />
     {children}
   </div>
 );
@@ -37,9 +34,8 @@ export const Card: React.FC<React.PropsWithChildren<{x: number; y: number; w: nu
       height: h,
       opacity: p,
       transform: `translateY(${(1 - p) * 24}px) scale(${0.96 + p * 0.04})`,
-      border: `4px solid ${accent}`,
-      background: 'rgba(5, 20, 32, 0.82)',
-      boxShadow: `0 0 28px ${accent}66`,
+      border: 'none', borderRadius: 14, background: 'rgba(3, 17, 29, 0.58)',
+      boxShadow: `0 10px 28px rgba(0,0,0,0.24), inset 0 1px 0 ${accent}55`,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -47,7 +43,7 @@ export const Card: React.FC<React.PropsWithChildren<{x: number; y: number; w: nu
       color: 'white',
       fontFamily: 'PingFang SC, Arial, sans-serif',
       fontWeight: 800,
-      textShadow: '0 3px 0 #001018',
+      textShadow: '0 2px 8px rgba(0,0,0,0.72)',
     }}
   >
     {children}
@@ -55,20 +51,18 @@ export const Card: React.FC<React.PropsWithChildren<{x: number; y: number; w: nu
 );
 
 export const MicroLabel: React.FC<{x: number; y: number; text: string; color?: string; size?: number}> = ({x, y, text, color = '#6eefff', size = 24}) => (
-  <div style={{position: 'absolute', left: x, top: y, width: 240, marginLeft: -120, textAlign: 'center', color, fontSize: size, fontWeight: 900, fontFamily: 'Arial, sans-serif', textShadow: '0 3px 0 #001018'}}>
+  <div style={{position: 'absolute', left: x, top: y, width: 280, marginLeft: -140, textAlign: 'center', color, fontSize: size, fontWeight: 700, fontFamily: 'PingFang SC, Helvetica Neue, Arial, sans-serif', textShadow: '0 2px 8px rgba(0,0,0,0.72)'}}>
     {text}
   </div>
 );
 
-export const FlowLine: React.FC<{x1: number; y: number; w: number; p: number; color?: string}> = ({x1, y, w, p, color = '#ffd84f'}) => (
-  <div style={{position: 'absolute', left: x1, top: y, width: w * p, height: 12, background: color, boxShadow: `0 0 22px ${color}`, borderRadius: 8}} />
+export const FlowLine: React.FC<{x1: number; y: number; w: number; p: number; color?: string}> = ({x1, y, w, p, color = '#6eefff'}) => (
+  <div style={{position: 'absolute', left: x1, top: y, width: w * p, height: 4, background: color, boxShadow: `0 0 12px ${color}`, borderRadius: 6}} />
 );
 
-export const IconBlock: React.FC<{accent?: string; label?: string}> = ({accent = '#6eefff', label}) => (
+export const IconBlock: React.FC<{accent?: string; label?: string; icon?: MotionIconRef}> = ({accent = '#6eefff', label, icon}) => (
   <div style={{width: 82, height: 82, position: 'relative', color: accent}}>
-    <div style={{position: 'absolute', left: 10, top: 10, width: 62, height: 62, border: `6px solid ${accent}`}} />
-    <div style={{position: 'absolute', left: 32, top: 0, width: 18, height: 82, background: accent, opacity: 0.58}} />
-    <div style={{position: 'absolute', left: 0, top: 32, width: 82, height: 18, background: accent, opacity: 0.34}} />
-    {label && <div style={{position: 'absolute', left: -50, top: 92, width: 182, textAlign: 'center', color: '#fff', fontSize: 30}}>{fit(label)}</div>}
+    <SemanticIcon icon={icon} color={accent} size={82} glow />
+    {label && <div style={{position: 'absolute', left: -58, top: 92, width: 198, textAlign: 'center', color: '#fff', fontSize: 28, fontFamily: 'PingFang SC, sans-serif', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,.7)'}}>{fit(label)}</div>}
   </div>
 );

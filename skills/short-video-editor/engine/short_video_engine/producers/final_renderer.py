@@ -116,7 +116,7 @@ def motion_overlay_specs(project_dir: Path) -> list[dict[str, Any]]:
                 "pattern": sequence_dir / "frame_%03d.png",
                 "start": start,
                 "end": end,
-                "framerate": max(1.0, len(frames) / max(end - start, 0.1)),
+                "framerate": max(1.0, to_float(layer.get("sequence_fps")) or 30.0),
                 "width": width,
                 "height": height,
                 "compositing_mode": "transparent_rgba_overlay",

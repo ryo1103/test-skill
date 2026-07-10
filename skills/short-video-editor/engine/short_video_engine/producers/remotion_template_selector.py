@@ -11,13 +11,15 @@ from ..paths import plan_dir
 from ..stage_result import current_command, failure
 
 
-FRAME_COUNT = 72
 STYLE = "tech_hud_glass"
 
 
 def select_remotion_templates(project_dir: Path) -> tuple[Path, dict[str, Any], list[dict[str, str]]]:
     assertions_payload = read_json(plan_dir(project_dir) / "motion_assertions.json", {})
     graphic_plan = read_json(plan_dir(project_dir) / "graphic_scene_plan.json", {})
+    icon_manifest = read_json(plan_dir(project_dir) / "motion_icon_manifest.json", {})
+    required_index = read_json(plan_dir(project_dir) / "required_motion_index.json", {})
+    intervals_by_motion = {str(item.get("motion_id") or ""): item for item in (required_index.get("required_motions") or []) if isinstance(item, dict)}
     registry = load_contract("remotion_template_registry.json")
     assertions = assertions_payload.get("assertions") if isinstance(assertions_payload, dict) else []
     scenes = graphic_plan.get("scenes") if isinstance(graphic_plan, dict) else []
@@ -29,7 +31,13 @@ def select_remotion_templates(project_dir: Path) -> tuple[Path, dict[str, Any], 
         if not isinstance(assertion, dict):
             continue
         llm_decision = decision_from_external(external_payload, assertion) if external_payload else None
-        decisions.append(llm_decision or deterministic_decision(assertion, scene_by_motion.get(str(assertion.get("motion_id") or "")), registry))
+        decision = llm_decision or deterministic_decision(assertion, scene_by_motion.get(str(assertion.get("motion_id") or "")), registry)
+        interval = intervals_by_motion.get(str(assertion.get("motion_id") or ""), {})
+        duration_sec = max(0.8, float(interval.get("end_sec") or 0) - float(interval.get("start_sec") or 0))
+        decision.setdefault("input_props", {})["durationInFrames"] = round(duration_sec * 30)
+        decision["input_props"]["fps"] = 30
+        enrich_decision_with_icons(project_dir, decision, assertion, icon_manifest)
+        decisions.append(decision)
     payload = {
         "generated_by": "short_video_engine",
         "engine_version": ENGINE_VERSION,
@@ -104,7 +112,7 @@ def deterministic_decision(assertion: dict[str, Any], scene: dict[str, Any] | No
         "semantic_action": action,
         "selected_template": template_id,
         "selection_reason": "deterministic_registry_mapping",
-        "input_props": input_props,
+        "input_props": input_props, "selected_layout_variant": "semantic_svg_overlay", "icon_selection_reason": "manifest_localized_svg_slots",
     }
 
 
@@ -112,7 +120,7 @@ def props_for_action(action: str, slots: dict[str, Any], assertion: dict[str, An
     props: dict[str, Any] = {
         "semanticAction": action,
         "claim": assertion.get("claim") or scene.get("primary_title") or "",
-        "durationInFrames": FRAME_COUNT,
+        "durationInFrames": 72, "fps": 30,
         "style": STYLE,
         "icons": {},
         "labels": [slot_text(value) for value in slots.values() if slot_text(value)],
@@ -145,6 +153,22 @@ def props_for_action(action: str, slots: dict[str, Any], assertion: dict[str, An
     else:
         props.update({"subject": slot_text(slots.get("subject")), "definition": slot_text(slots.get("definition")), "role": slot_text(slots.get("role"))})
     return props
+
+
+def enrich_decision_with_icons(project_dir: Path, decision: dict[str, Any], assertion: dict[str, Any], manifest: dict[str, Any]) -> None:
+    props = decision.setdefault("input_props", {})
+    by_assertion = manifest.get("icons_by_assertion") if isinstance(manifest, dict) else {}
+    slots = by_assertion.get(str(assertion.get("motion_assertion_id") or ""), {}) if isinstance(by_assertion, dict) else {}
+    props["icons"] = {
+        str(slot): {"semanticKey": value.get("semantic_key"), "src": value.get("public_path"), "colorToken": "danger" if str(slot).startswith("rejected") else "accentSecondary"}
+        for slot, value in slots.items() if isinstance(value, dict)
+    }
+    props["scene"] = {"nodes": [{"id": str(slot), "label": slot_text((assertion.get("slots") or {}).get(slot)), "iconSlot": str(slot)} for slot in slots], "metrics": [], "connectors": [], "intensity": "normal"}
+    props["styleTokens"] = {"accentPrimary": "#65e7ff", "accentSecondary": "#72ebcb", "danger": "#ff5c7a", "textPrimary": "#ffffff", "textSecondary": "#bde6ff", "panel": "rgba(2,13,22,0.68)", "panelEdge": "#65e7ff", "fontFamily": "PingFang SC, Arial, sans-serif"}
+    frames = int(props.get("durationInFrames") or 72)
+    props["timing"] = {"enterEnd": round(frames * .18), "buildEnd": round(frames * .52), "emphasisEnd": round(frames * .70), "holdEnd": round(frames * .90)}
+    decision["icon_coverage"] = sorted(slots)
+    decision["unresolved_icon_slots"] = [str(key) for key in (assertion.get("slots") or {}) if str(key) not in slots]
 
 
 def validate_remotion_template_decisions(project_dir: Path, payload: dict[str, Any], registry: dict[str, Any] | None = None) -> list[dict[str, str]]:

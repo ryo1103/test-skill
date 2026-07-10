@@ -38,7 +38,9 @@
     "allowed": ["chip", "node", "meter", "rail", "split", "terminal", "lens", "connector"]
   },
   "background_treatment": {
-    "default": "transparent_overlay_with_scan_grid_and_depth_scrim",
+    "default": "localized_translucent_readability_backdrop",
+    "coverage_policy": "content_bounds_only_not_global_frame",
+    "outer_frame_allowed": false,
     "safe_regions": {
       "title_reserved_y2": 420,
       "subtitle_reserved_y1": 1480
@@ -49,6 +51,16 @@
     "easing": "cubic-bezier(0.16,1,0.3,1)",
     "stagger_sec": 0.08,
     "stages": ["start", "build", "peak", "settle", "end"]
+  },
+  "production_composition_rules": {
+    "no_global_outer_frame": true,
+    "no_unmotivated_full_width_connector": true,
+    "no_glyph_arrow": true,
+    "localized_template_chrome": true,
+    "local_readability_backdrop": true,
+    "connector_animation_policy": "segmented_sequential_node_to_node",
+    "connector_color_policy": "semantic_style_tokens_only",
+    "readable_hold_required": true
   },
   "allowed_professional_templates": [
     "chip_node_network",

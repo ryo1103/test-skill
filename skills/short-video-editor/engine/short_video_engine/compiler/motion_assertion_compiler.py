@@ -219,6 +219,12 @@ def enrich_slots_with_icons(slots: dict[str, str], action: str, semantic_icon_ma
 
 def semantic_icon_for(slot_name: str, text: str, action: str, semantic_icon_map: dict[str, Any]) -> str:
     lowered = str(text or "").lower()
+    # Structural endpoint slots describe the role in the animation and take
+    # precedence over nouns in their display labels (for example 光纤 as input).
+    if slot_name == "input":
+        return "input"
+    if slot_name == "output":
+        return "output"
     for key, config in semantic_icon_map.items():
         keywords = config.get("keywords") if isinstance(config, dict) else []
         for keyword in keywords if isinstance(keywords, list) else []:
@@ -230,10 +236,6 @@ def semantic_icon_for(slot_name: str, text: str, action: str, semantic_icon_map:
         return "optical_module"
     if slot_name in {"accepted_definition", "subject", "connector", "new_solution"} and action in {"negate_and_redefine", "connector_metaphor", "density_comparison"}:
         return "connector"
-    if slot_name in {"input"}:
-        return "input"
-    if slot_name in {"output"}:
-        return "output"
     if slot_name in {"old_solution", "before", "old_step"}:
         return "warning" if action in {"density_comparison", "process_migration"} else "node"
     if slot_name in {"new_requirement"}:

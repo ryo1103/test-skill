@@ -9,6 +9,7 @@ import {NodeRelationTriangle} from './NodeRelationTriangle';
 import {ProcessMigration} from './ProcessMigration';
 import {SplitScreenComparison} from './SplitScreenComparison';
 import {SystemErrorPanel} from './SystemErrorPanel';
+import {MotionIconRef} from '../components/SemanticIcon';
 
 export type MotionLayerProps = {
   templateId: string;
@@ -16,7 +17,13 @@ export type MotionLayerProps = {
   semanticAction?: string;
   claim?: string;
   labels?: string[];
-  icons?: Record<string, string>;
+  fps?: number;
+  width?: number;
+  height?: number;
+  icons?: Record<string, MotionIconRef>;
+  scene?: {nodes?: Array<{id: string; label: string; iconSlot?: string}>; metrics?: Array<{id: string; label: string; value: string}>; connectors?: Array<{from: string; to: string; style?: string}>; intensity?: string};
+  styleTokens?: {accentPrimary?: string; accentSecondary?: string; danger?: string; textPrimary?: string; textSecondary?: string; panel?: string; panelEdge?: string; fontFamily?: string};
+  timing?: {enterEnd?: number; buildEnd?: number; emphasisEnd?: number; holdEnd?: number};
   style?: string;
   durationInFrames?: number;
   subject?: string;

@@ -68,6 +68,7 @@ def scene_for_segment(segment: dict[str, Any], shots_by_id: dict[str, dict[str, 
     metrics = metrics_for_template(template, segment, labels)
     connectors = connectors_for_template(template, nodes)
     primary_title = str(segment.get("visual_claim") or (labels[0] if labels else relation) or "逻辑关系")[:18]
+    production_rules = preset.get("production_composition_rules") if isinstance(preset.get("production_composition_rules"), dict) else {}
     return {
         "scene_id": f"graphic_{index:03d}_{shot_id or 'scene'}",
         "shot_id": shot_id,
@@ -91,6 +92,12 @@ def scene_for_segment(segment: dict[str, Any], shots_by_id: dict[str, dict[str, 
             "motion_design_preset_applied": True,
             "no_large_empty_panel": True,
             "no_title_subtitle_overlap": True,
+            "no_global_outer_frame": production_rules.get("no_global_outer_frame") is True,
+            "no_unmotivated_full_width_connector": production_rules.get("no_unmotivated_full_width_connector") is True,
+            "no_glyph_arrow": production_rules.get("no_glyph_arrow") is True,
+            "localized_template_chrome": production_rules.get("localized_template_chrome") is True,
+            "local_readability_backdrop": production_rules.get("local_readability_backdrop") is True,
+            "connector_animation_policy": production_rules.get("connector_animation_policy") or "segmented_sequential_node_to_node",
             "required_components": ["panel", "two_of_icon_node_connector_metric"],
         },
         "component_inventory": component_inventory(template, nodes, metrics, connectors),
