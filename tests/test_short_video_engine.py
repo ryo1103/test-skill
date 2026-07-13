@@ -520,7 +520,7 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "project"
             prepare_s5_project(project)
-            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay", "--motion-renderer", "motion_canvas"], check=True)
             mutate_motion_layers(project, lambda payload: payload["layers"][0].update({"layer_type": "static_png"}))
             result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
             self.assertNotEqual(result.returncode, 0)
@@ -530,7 +530,7 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "project"
             prepare_s5_project(project)
-            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay", "--motion-renderer", "motion_canvas"], check=True)
             payload = read_json(project / "work" / "plan" / "motion_layers.json")
             layer = payload["layers"][0]
             self.assertEqual(layer["overlay_compositing_mode"], "transparent_rgba_overlay")
@@ -652,12 +652,12 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             chip_project = Path(tmp) / "chip_project"
             prepare_s5_project(error_project, script="开场介绍一句。这个错误会导致系统失败需要马上修正。最后总结观点。")
             prepare_s5_project(chip_project, script="开场介绍一句。GlassBridge把芯片和光纤连接器连接成节点网络。最后总结观点。")
-            for project, expected in ((error_project, "cause_to_result_scene"), (chip_project, "connector_flow_scene")):
+            for project, expected in ((error_project, "progressive_relation_graph_scene"), (chip_project, "connector_flow_scene")):
                 run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
                 scene = read_json(project / "work" / "plan" / "graphic_scene_plan.json")["scenes"][0]
                 layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
                 self.assertEqual(scene["scene_template"], expected)
-                self.assertEqual(layer["renderer_backend"], "motion_canvas_sequence")
+                self.assertIn(layer["renderer_backend"], {"motion_canvas_sequence", "remotion_sequence"})
                 for key in ("start", "build", "peak", "settle", "end"):
                     self.assertTrue(Path(layer["frame_evidence"][key]).exists())
 
@@ -742,12 +742,75 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
             run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
             layer = read_json(project / "work" / "plan" / "motion_layers.json")["layers"][0]
             self.assertEqual(layer["semantic_action"], "metric_growth")
-            for action in ("bar_grow", "number_change", "direction_emphasis"):
+            for action in ("reveal_baseline", "draw_growth_curve", "reveal_delta", "direction_emphasis"):
                 self.assertIn(action, layer["animation_stages"])
             mutate_motion_layers(project, lambda payload: payload["layers"][0]["semantic_visual_proof"].pop("has_metric_delta", None))
             result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("metric_scene_missing_delta", result.stdout)
+
+    def test_s5_relation_network_uses_open_canvas_graph(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。HBM需要持续调用上下文和DRAM长期沉淀。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            assertion = read_json(project / "work" / "plan" / "motion_assertions.json")["assertions"][0]
+            scene = read_json(project / "work" / "plan" / "graphic_scene_plan.json")["scenes"][0]
+            decision = read_json(project / "work" / "plan" / "remotion_template_decisions.json")["decisions"][0]
+            self.assertEqual(assertion["semantic_action"], "relation_network")
+            self.assertEqual(scene["scene_template"], "progressive_relation_graph_scene")
+            self.assertEqual(scene["composition_mode"], "open_canvas")
+            self.assertEqual(scene["topology"], "hub_spoke")
+            self.assertEqual(len(scene["nodes"]), 3)
+            self.assertEqual(len(scene["connectors"]), 2)
+            self.assertTrue(scene["cue_anchors"])
+            self.assertEqual(decision["selected_template"], "progressive_relation_graph")
+            self.assertEqual(len(decision["input_props"]["scene"]["connectors"]), 2)
+
+    def test_s5_trend_timeline_uses_narrative_curve(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。需求从2025年上升，到2027年出现分水岭，2029年进入平台期。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            assertion = read_json(project / "work" / "plan" / "motion_assertions.json")["assertions"][0]
+            scene = read_json(project / "work" / "plan" / "graphic_scene_plan.json")["scenes"][0]
+            decision = read_json(project / "work" / "plan" / "remotion_template_decisions.json")["decisions"][0]
+            self.assertEqual(assertion["semantic_action"], "trend_timeline")
+            self.assertEqual(scene["scene_template"], "narrative_trend_curve_scene")
+            self.assertEqual(scene["topology"], "time_series")
+            self.assertEqual(decision["selected_template"], "narrative_trend_curve")
+            self.assertEqual(decision["input_props"]["pivotPeriod"], "2027年")
+            self.assertEqual(decision["input_props"]["trendDirection"], "rise_then_plateau")
+
+    def test_s5_bottleneck_evidence_uses_local_callout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。供给侧核心瓶颈是工厂建设及产能爬坡，需要3-4年。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            assertion = read_json(project / "work" / "plan" / "motion_assertions.json")["assertions"][0]
+            scene = read_json(project / "work" / "plan" / "graphic_scene_plan.json")["scenes"][0]
+            decision = read_json(project / "work" / "plan" / "remotion_template_decisions.json")["decisions"][0]
+            self.assertEqual(assertion["semantic_action"], "bottleneck_evidence")
+            self.assertEqual(assertion["slots"]["duration_or_metric"]["text"], "3-4年")
+            self.assertEqual(scene["scene_template"], "evidence_callout_overlay_scene")
+            self.assertTrue(scene["component_inventory"]["callout"])
+            self.assertEqual(decision["selected_template"], "evidence_callout_overlay")
+
+    def test_s5_open_canvas_rejects_missing_cue_and_invalid_connector(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            prepare_s5_project(project, script="开场介绍一句。HBM需要持续调用上下文和DRAM长期沉淀。最后总结观点。")
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+
+            def break_open_canvas(payload):
+                payload["scenes"][0]["cue_anchors"] = []
+                payload["scenes"][0]["connectors"][0]["to"] = "missing_node"
+
+            mutate_graphic_scene_plan(project, break_open_canvas)
+            result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("motion_cue_anchor_missing", result.stdout)
+            self.assertIn("motion_connector_endpoint_invalid", result.stdout)
 
     def test_s5_process_migration_requires_transition(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -802,7 +865,7 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "project"
             prepare_s5_project(project, script="开场介绍一句。GlassBridge它不是一颗芯片，也不是新的光模块，而是一个光纤连接器。最后总结观点。")
-            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay", "--motion-renderer", "motion_canvas"], check=True)
             manifest = read_json(project / "work" / "plan" / "motion_icon_manifest.json")
             sources = {asset["semantic_key"]: asset["source_type"] for asset in manifest["icons"]}
             self.assertEqual(sources["chip"], "generated_svg")
@@ -847,7 +910,7 @@ class ShortVideoEngineSmokeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "project"
             prepare_s5_project(project)
-            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay"], check=True)
+            run_cmd([str(CLI), "run", "--project-dir", str(project), "--from-stage", "S5_motion_overlay", "--to-stage", "S5_motion_overlay", "--motion-renderer", "motion_canvas"], check=True)
             payload = read_json(project / "work" / "plan" / "motion_layers.json")
             Path(payload["layers"][0]["motion_source_files"][0]).unlink()
             result = run_cmd([str(CLI), "validate-stage", "--project-dir", str(project), "--stage", "S5_motion_overlay"])

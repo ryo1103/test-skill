@@ -132,9 +132,12 @@ def generated_svg(semantic_key: str) -> str:
         "cost": "<circle cx='12' cy='12' r='8'/><path d='M15 9c-1-2-5-2-5 0 0 3 5 1 5 4 0 2-4 2-5 0m2-8v14'/>",
         "efficiency": "<path d='M4 16 9 11l3 3 8-8'/><path d='M15 6h5v5'/><circle cx='6' cy='18' r='2'/>", "risk": "<path d='M3 3h18v18H3z'/><path d='M12 7v6m0 3h.01'/>",
         "trend_up": "<path d='M3 17 9 11l4 3 8-8'/><path d='M16 6h5v5'/>", "trend_down": "<path d='m3 7 6 6 4-3 8 8'/><path d='M16 18h5v-5'/>",
+        "timeline": "<path d='M4 17h16'/><path d='M6 14V9m6 5V5m6 9v-3'/><circle cx='6' cy='9' r='2'/><circle cx='12' cy='5' r='2'/><circle cx='18' cy='11' r='2'/>",
         "network": "<circle cx='5' cy='12' r='2'/><circle cx='19' cy='6' r='2'/><circle cx='19' cy='18' r='2'/><path d='m7 12 10-6M7 12l10 6'/>", "memory": "<rect x='5' y='6' width='14' height='12' rx='2'/><path d='M8 9h8m-8 3h8m-8 3h5'/>",
         "old_solution": "<path d='M5 4h14v16H5z'/><path d='m8 8 8 8m0-8-8 8'/>", "new_solution": "<path d='M5 12l4 4 10-10'/><circle cx='12' cy='12' r='9'/>",
         "cause": "<circle cx='7' cy='12' r='3'/><path d='M10 12h10m-4-4 4 4-4 4'/>", "mechanism": "<circle cx='12' cy='12' r='3'/><path d='M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1'/>", "result": "<path d='M4 12h10m-4-4 4 4-4 4'/><path d='M17 6h3v12h-3'/>",
+        "node": "<circle cx='12' cy='12' r='4'/><circle cx='12' cy='12' r='9'/><path d='M12 3v5m0 8v5M3 12h5m8 0h5'/>",
+        "generic_concept": "<path d='M12 3 20 8v8l-8 5-8-5V8z'/><circle cx='12' cy='12' r='3'/>",
     }
     body = shapes.get(semantic_key, "<circle cx='12' cy='12' r='7'/><circle cx='12' cy='12' r='2'/><path d='M12 3v3m0 12v3M3 12h3m12 0h3'/>")
     return f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='{VIEW_BOX}' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>{body}</svg>\n"

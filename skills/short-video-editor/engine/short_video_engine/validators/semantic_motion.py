@@ -157,6 +157,12 @@ def action_specific_failures(assertion_id: str, semantic_action: str, proof: dic
         failures.append(failure("density_scene_missing_pressure_or_expansion", f"{assertion_id} density comparison must show pressure and expansion."))
     if semantic_action in {"before_after_change", "density_comparison"} and proof.get("has_comparison_axis") is not True:
         failures.append(failure("comparison_scene_missing_axis", f"{assertion_id} comparison motion must show an axis or before/after separation."))
+    if semantic_action == "relation_network" and proof.get("has_materialized_topology") is not True:
+        failures.append(failure("relation_network_missing_topology", f"{assertion_id} relation network must materialize semantic nodes and edges."))
+    if semantic_action == "trend_timeline" and (proof.get("has_time_axis") is not True or proof.get("has_pivot") is not True):
+        failures.append(failure("trend_timeline_missing_axis_or_pivot", f"{assertion_id} trend timeline must show a time axis and semantic pivot."))
+    if semantic_action == "bottleneck_evidence" and (proof.get("has_anchored_callout") is not True or proof.get("has_metric_evidence") is not True):
+        failures.append(failure("bottleneck_scene_missing_evidence", f"{assertion_id} bottleneck motion must anchor the callout and reveal evidence."))
     return failures
 
 

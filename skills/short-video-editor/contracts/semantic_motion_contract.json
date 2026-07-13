@@ -1,6 +1,6 @@
 {
   "generated_by": "short_video_engine",
-  "contract_id": "semantic_motion_contract_v1",
+  "contract_id": "semantic_motion_contract_v2",
   "semantic_actions": {
     "negate_and_redefine": {
       "required_slots": ["subject", "rejected_a", "rejected_b", "accepted_definition"],
@@ -14,8 +14,8 @@
     },
     "metric_growth": {
       "required_slots": ["metric", "baseline", "target_or_delta"],
-      "required_visual_actions": ["bar_grow", "number_change", "direction_emphasis"],
-      "recommended_template": "metric_growth_scene"
+      "required_visual_actions": ["reveal_baseline", "draw_growth_curve", "reveal_delta", "direction_emphasis"],
+      "recommended_template": "narrative_trend_curve_scene"
     },
     "process_migration": {
       "required_slots": ["old_step", "new_step", "result"],
@@ -35,12 +35,27 @@
     "cause_to_result": {
       "required_slots": ["cause", "mechanism", "result"],
       "required_visual_actions": ["show_cause", "show_mechanism", "show_result"],
-      "recommended_template": "cause_to_result_scene"
+      "recommended_template": "progressive_relation_graph_scene"
     },
     "before_after_change": {
       "required_slots": ["before", "transition", "after"],
       "required_visual_actions": ["show_before", "transform", "show_after"],
       "recommended_template": "before_after_scene"
+    },
+    "relation_network": {
+      "required_slots": ["core", "dependency_a", "dependency_b"],
+      "required_visual_actions": ["show_core", "grow_relation_a", "reveal_dependency_a", "grow_relation_b", "reveal_dependency_b", "settle_network"],
+      "recommended_template": "progressive_relation_graph_scene"
+    },
+    "trend_timeline": {
+      "required_slots": ["metric", "start_period", "pivot_period", "end_period", "trend_label"],
+      "required_visual_actions": ["reveal_axis", "draw_trend", "reveal_pivot", "extend_projection", "hold_outlook"],
+      "recommended_template": "narrative_trend_curve_scene"
+    },
+    "bottleneck_evidence": {
+      "required_slots": ["subject", "bottleneck", "duration_or_metric"],
+      "required_visual_actions": ["locate_subject", "pin_bottleneck", "reveal_metric", "hold_evidence"],
+      "recommended_template": "evidence_callout_overlay_scene"
     }
   }
 }

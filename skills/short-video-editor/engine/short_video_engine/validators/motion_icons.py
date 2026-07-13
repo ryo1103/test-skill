@@ -43,8 +43,8 @@ def validate_motion_icons(project_dir: Path, *, require_layers: bool = True) -> 
             failures.append(failure("motion_icon_not_sanitized", f"SVG {icon.get('icon_id')} was not sanitized."))
         if icon.get("source_type") == "downloaded_svg" and (not icon.get("license_or_note") or not icon.get("source_url")):
             failures.append(failure("downloaded_motion_icon_missing_provenance", "Downloaded SVG requires source URL and license provenance."))
-    key_hashes = {hashes.get(key) for key in ("chip", "connector", "server", "warning", "database") if hashes.get(key)}
-    if len(key_hashes) == 1 and len(hashes) >= 5:
+    key_hashes = [hashes[key] for key in ("chip", "connector", "server", "warning", "database") if key in hashes]
+    if len(key_hashes) >= 3 and len(set(key_hashes)) == 1:
         failures.append(failure("motion_icon_semantics_collapsed", "Distinct key semantics cannot all use one SVG hash."))
     if require_layers:
         layers = read_json(plan_dir(project_dir) / "motion_layers.json", {}).get("layers") or []

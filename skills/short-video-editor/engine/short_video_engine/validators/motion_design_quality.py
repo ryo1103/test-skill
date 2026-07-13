@@ -62,6 +62,8 @@ def validate_scene(scene: dict[str, Any]) -> list[dict[str, str]]:
         "no_glyph_arrow": ("motion_glyph_arrow_forbidden", "Professional motion cannot use text glyphs such as > or › as drawn arrows."),
         "localized_template_chrome": ("motion_template_chrome_not_localized", "Template chrome must use localized semantic labels instead of generic English UI copy."),
         "local_readability_backdrop": ("motion_local_backdrop_required", "Motion must use a local readability backdrop rather than a global frame."),
+        "no_unmotivated_yellow_connector": ("motion_unmotivated_yellow_connector", "Yellow connectors cannot be injected as default decoration."),
+        "semantic_color_roles_applied": ("motion_semantic_color_roles_missing", "Motion colors must follow semantic roles instead of template defaults."),
     }
     for key, (code, message) in production_targets.items():
         if target.get(key) is not True:
@@ -72,7 +74,9 @@ def validate_scene(scene: dict[str, Any]) -> list[dict[str, str]]:
         failures.append(failure("final_summary_high_intensity_motion", "Final summary scenes cannot use high intensity motion."))
     inventory = scene.get("component_inventory") if isinstance(scene.get("component_inventory"), dict) else {}
     if not component_requirement_met(inventory, scene):
-        failures.append(failure("insufficient_professional_components", "Each professional scene needs a panel plus two of icon/node/connector/metric."))
+        failures.append(failure("insufficient_professional_components", "Professional scenes must materialize either a bounded semantic composition or a complete open-canvas topology."))
+    if str(scene.get("composition_mode") or "") == "open_canvas":
+        failures.extend(validate_open_canvas_scene(scene, target))
     return failures
 
 
@@ -99,6 +103,11 @@ def validate_layer_quality(layer: dict[str, Any], scene: dict[str, Any] | None, 
 
 
 def component_requirement_met(inventory: dict[str, Any], scene: dict[str, Any]) -> bool:
+    if str(scene.get("composition_mode") or "") == "open_canvas":
+        node_count = int(inventory.get("node_count") or len(scene.get("nodes") or []))
+        connector_count = int(inventory.get("connector_count") or len(scene.get("connectors") or []))
+        supporting_payload = inventory.get("metric") is True or inventory.get("callout") is True or node_count >= 3
+        return inventory.get("open_canvas") is True and inventory.get("panel") is not True and node_count >= 2 and connector_count >= 1 and supporting_payload
     if inventory:
         has_panel = inventory.get("panel") is True
         secondary_count = sum(1 for key in ("icon", "node", "connector", "metric") if inventory.get(key) is True)
@@ -112,6 +121,37 @@ def component_requirement_met(inventory: dict[str, Any], scene: dict[str, Any]) 
     if scene.get("connectors"):
         secondary_count += 1
     return has_panel and secondary_count >= 2
+
+
+def validate_open_canvas_scene(scene: dict[str, Any], target: dict[str, Any]) -> list[dict[str, str]]:
+    failures: list[dict[str, str]] = []
+    if target.get("open_canvas_requires_materialized_topology") is not True:
+        failures.append(failure("open_canvas_topology_contract_missing", "Open-canvas motion must require a materialized topology."))
+    if target.get("base_plate_visible") is not True:
+        failures.append(failure("open_canvas_base_plate_hidden", "Open-canvas motion must preserve the B-roll base plate."))
+    if target.get("cue_anchored_reveal_required") is not True or not scene.get("cue_anchors"):
+        failures.append(failure("motion_cue_anchor_missing", "Open-canvas motion reveals must be anchored to subtitle timing cues."))
+    nodes = scene.get("nodes") if isinstance(scene.get("nodes"), list) else []
+    connectors = scene.get("connectors") if isinstance(scene.get("connectors"), list) else []
+    node_ids = {str(node.get("id") or "") for node in nodes if isinstance(node, dict)}
+    if not str(scene.get("topology") or "").strip():
+        failures.append(failure("motion_topology_missing", "Open-canvas motion must declare its semantic topology."))
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        position = node.get("position") if isinstance(node.get("position"), dict) else {}
+        if "x" not in position or "y" not in position or not (0 <= float_or_zero(position.get("x")) <= 1 and 0 <= float_or_zero(position.get("y")) <= 1):
+            failures.append(failure("motion_node_position_invalid", "Every open-canvas node needs normalized x/y coordinates."))
+            break
+    for connector in connectors:
+        if not isinstance(connector, dict):
+            continue
+        source = str(connector.get("from") or "")
+        target_id = str(connector.get("to") or "")
+        if not source or not target_id or source == target_id or source not in node_ids or target_id not in node_ids:
+            failures.append(failure("motion_connector_endpoint_invalid", "Every open-canvas connector must join two distinct materialized nodes."))
+            break
+    return failures
 
 
 def float_or_zero(value: Any) -> float:

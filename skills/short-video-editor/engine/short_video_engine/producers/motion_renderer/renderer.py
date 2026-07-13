@@ -438,6 +438,26 @@ def semantic_relation_fields(assertion: dict[str, Any]) -> dict[str, Any]:
         return {"logic_relation": "before_after", "before_state": slot_text(slots.get("before")), "after_state": slot_text(slots.get("after"))}
     if action == "cause_to_result":
         return {"logic_relation": "cause_effect", "direction": "left_to_right", "cause": slot_text(slots.get("cause")), "effect": slot_text(slots.get("result"))}
+    if action == "relation_network":
+        return {
+            "logic_relation": "structure",
+            "topology": "hub_spoke",
+            "ordered_steps": [slot_text(slots.get("core")), slot_text(slots.get("dependency_a")), slot_text(slots.get("dependency_b"))],
+        }
+    if action == "trend_timeline":
+        return {
+            "logic_relation": "timeline",
+            "ordered_steps": [slot_text(slots.get("start_period")), slot_text(slots.get("pivot_period")), slot_text(slots.get("end_period"))],
+            "metric": slot_text(slots.get("metric")),
+            "delta": slot_text(slots.get("trend_label")),
+        }
+    if action == "bottleneck_evidence":
+        return {
+            "logic_relation": "cause_effect",
+            "direction": "anchored_callout",
+            "cause": slot_text(slots.get("bottleneck")),
+            "effect": slot_text(slots.get("duration_or_metric")),
+        }
     return {"logic_relation": "structure", "ordered_steps": [slot_text(value) for value in slots.values() if slot_text(value)]}
 
 
@@ -603,8 +623,12 @@ def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, 
                 "expression_plan": expression_plan,
                 "motion_text_items": segment.get("motion_text_items") or [],
                 "motion_pattern_family": str(remotion_decision.get("selected_template") or professional_template or template),
-                "visual_style_version": "remotion_tech_hud_template_v1",
-                "motion_layout_boxes": motion_layout_boxes(template),
+                "visual_style_version": "remotion_editorial_tech_overlay_v2",
+                "motion_layout_boxes": motion_layout_boxes_for_scene(scene, template),
+                "composition_mode": scene.get("composition_mode"),
+                "semantic_topology": scene.get("topology"),
+                "cue_anchors": scene.get("cue_anchors") or [],
+                "background_treatment": scene.get("background_treatment"),
                 "visual_structure_signature": f"{remotion_decision.get('selected_template') or professional_template or template}:{relation}",
                 "preferred_renderer": requested_renderer,
                 **artifact_info,
@@ -658,7 +682,7 @@ def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, 
                 "motion_text_items": segment.get("motion_text_items") or [],
                 "motion_pattern_family": professional_template or template,
                 "visual_style_version": "motion_canvas_tech_hud_v1",
-                "motion_layout_boxes": motion_layout_boxes(template),
+                "motion_layout_boxes": motion_layout_boxes_for_scene(scene, template),
                 "visual_structure_signature": f"{professional_template or template}:{relation}",
                 "preferred_renderer": requested_renderer,
                 **artifact_info,
@@ -698,7 +722,7 @@ def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, 
             "motion_text_items": segment.get("motion_text_items") or [],
             "motion_pattern_family": template,
             "visual_style_version": "blocked_no_text_renderer",
-            "motion_layout_boxes": motion_layout_boxes(template),
+            "motion_layout_boxes": motion_layout_boxes_for_scene(scene, template),
             "visual_structure_signature": f"{template}:{relation}",
             "preferred_renderer": requested_renderer,
             "renderer_backend": "blocked_no_text_renderer",
@@ -749,7 +773,7 @@ def render_segment(project_dir: Path, segment: dict[str, Any], scene: dict[str, 
         "motion_text_items": segment.get("motion_text_items") or [],
         "motion_pattern_family": template,
         "visual_style_version": "pillow_glass_logic_v2",
-        "motion_layout_boxes": motion_layout_boxes(template),
+        "motion_layout_boxes": motion_layout_boxes_for_scene(scene, template),
         "visual_structure_signature": f"{template}:{relation}",
         "preferred_renderer": requested_renderer,
         "renderer_backend": "pillow_sequence",
@@ -800,7 +824,7 @@ def blocked_motion_canvas_layer(project_dir: Path, segment: dict[str, Any], scen
         "motion_text_items": segment.get("motion_text_items") or [],
         "motion_pattern_family": scene.get("scene_template") or template,
         "visual_style_version": "motion_canvas_blocked",
-        "motion_layout_boxes": motion_layout_boxes(template),
+        "motion_layout_boxes": motion_layout_boxes_for_scene(scene, template),
         "visual_structure_signature": f"{scene.get('scene_template') or template}:{relation}",
         "preferred_renderer": requested_renderer,
         "renderer_backend": "motion_canvas_source",
@@ -845,7 +869,7 @@ def blocked_remotion_layer(project_dir: Path, segment: dict[str, Any], scene: di
         "motion_text_items": segment.get("motion_text_items") or [],
         "motion_pattern_family": str(source_info.get("selected_template") or scene.get("scene_template") or template),
         "visual_style_version": "remotion_blocked",
-        "motion_layout_boxes": motion_layout_boxes(template),
+        "motion_layout_boxes": motion_layout_boxes_for_scene(scene, template),
         "visual_structure_signature": f"{source_info.get('selected_template') or scene.get('scene_template') or template}:{relation}",
         "preferred_renderer": requested_renderer,
         **source_info,
@@ -898,6 +922,12 @@ def semantic_visual_proof_for(action: str) -> dict[str, bool]:
         proof.update({"has_transition": True, "has_connection_flow": True})
     elif action == "concept_definition":
         proof.update({"has_connection_flow": True})
+    elif action == "relation_network":
+        proof.update({"has_materialized_topology": True, "has_connection_flow": True})
+    elif action == "trend_timeline":
+        proof.update({"has_metric_delta": True, "has_time_axis": True, "has_pivot": True})
+    elif action == "bottleneck_evidence":
+        proof.update({"has_anchored_callout": True, "has_metric_evidence": True})
     return proof
 
 
@@ -965,6 +995,17 @@ def semantic_template_for(template: str) -> str:
         "before_after": "before state to after state",
         "not_x_but_y_bridge": "rejected state through pivot to accepted state",
     }.get(template, "layered callout")
+
+
+def motion_layout_boxes_for_scene(scene: dict[str, Any], template: str) -> dict[str, Any]:
+    if str(scene.get("composition_mode") or "") == "open_canvas":
+        return {
+            "title_reserved": {"x1": 0, "y1": 0, "x2": WIDTH, "y2": SAFE_TOP},
+            "subtitle_reserved": {"x1": 0, "y1": SAFE_BOTTOM, "x2": WIDTH, "y2": HEIGHT},
+            "content": {"x1": 60, "y1": 500, "x2": 1020, "y2": 1400},
+            "base_plate_visibility": {"x1": 0, "y1": SAFE_TOP, "x2": WIDTH, "y2": SAFE_BOTTOM},
+        }
+    return motion_layout_boxes(template)
 
 
 def motion_layout_boxes(template: str) -> dict[str, Any]:
@@ -1319,6 +1360,16 @@ def validate_layer(layer: dict[str, Any], project_dir: Path) -> list[dict[str, s
 def validate_motion_layout(layer: dict[str, Any]) -> list[dict[str, str]]:
     failures: list[dict[str, str]] = []
     boxes = layer.get("motion_layout_boxes") if isinstance(layer.get("motion_layout_boxes"), dict) else {}
+    if boxes and all(key in boxes for key in ("title_reserved", "subtitle_reserved", "content", "base_plate_visibility")):
+        title = normalized_box(boxes["title_reserved"])
+        subtitle = normalized_box(boxes["subtitle_reserved"])
+        content = normalized_box(boxes["content"])
+        base_plate = normalized_box(boxes["base_plate_visibility"])
+        if not box_inside_canvas(content) or not box_inside_canvas(base_plate):
+            failures.append(failure("motion_layout_outside_canvas", "Open-canvas motion content or base-plate visibility box is outside the canvas."))
+        if intersects(content, title) or intersects(content, subtitle):
+            failures.append(failure("motion_layout_safe_area_overlap", "Open-canvas motion content overlaps title or subtitle reserved area."))
+        return failures
     required = ["title_reserved", "subtitle_reserved", "claim", "panel", "progress"]
     if not boxes or any(key not in boxes for key in required):
         return [failure("motion_layout_boxes_missing", "Motion layer must declare title/subtitle-safe layout boxes.")]

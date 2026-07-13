@@ -1,13 +1,14 @@
 {
   "generated_by": "short_video_engine",
-  "preset_id": "tech_hud_graphic_package_v1",
+  "preset_id": "editorial_tech_overlay_v2",
   "palette": {
     "background": "#02070B",
     "panel": "rgba(7,18,28,0.72)",
     "panel_edge": "#6EEBFF",
-    "accent_primary": "#72EBCB",
-    "accent_secondary": "#F8D34D",
-    "danger": "#FF5C7A",
+    "accent_primary": "#19E6E6",
+    "accent_secondary": "#FF4F87",
+    "positive": "#72EBCB",
+    "danger": "#FF4F87",
     "text_primary": "#FFFFFF",
     "text_secondary": "#B8CCD7"
   },
@@ -38,9 +39,11 @@
     "allowed": ["chip", "node", "meter", "rail", "split", "terminal", "lens", "connector"]
   },
   "background_treatment": {
-    "default": "localized_translucent_readability_backdrop",
-    "coverage_policy": "content_bounds_only_not_global_frame",
+    "default": "base_plate_navy_wash_with_local_semantic_surfaces",
+    "coverage_policy": "transparent_scene_wash_without_decorative_outer_frame",
     "outer_frame_allowed": false,
+    "base_plate_must_remain_visible": true,
+    "maximum_scene_wash_opacity": 0.36,
     "safe_regions": {
       "title_reserved_y2": 420,
       "subtitle_reserved_y1": 1480
@@ -60,7 +63,46 @@
     "local_readability_backdrop": true,
     "connector_animation_policy": "segmented_sequential_node_to_node",
     "connector_color_policy": "semantic_style_tokens_only",
+    "no_unmotivated_yellow_connector": true,
+    "semantic_color_roles_applied": true,
+    "open_canvas_requires_materialized_topology": true,
+    "cue_anchored_reveal_required": true,
     "readable_hold_required": true
+  },
+  "visual_grammar": {
+    "composition_modes": {
+      "open_canvas": "relationships, trends, and annotations float directly over a graded base plate",
+      "bounded_evidence": "a compact surface is allowed only when it contains a metric, quote, or evidence payload",
+      "split_field": "comparison may divide the visual field but cannot add a decorative outer frame"
+    },
+    "node_language": {
+      "shape": "circular_halo",
+      "icon": "localized_monoline_svg",
+      "label_position": "below_node",
+      "entry": "scale_fade_ring_pulse"
+    },
+    "connector_language": {
+      "geometry": "svg_path_between_materialized_node_coordinates",
+      "entry": "stroke_dash_growth_from_existing_node",
+      "arrowheads": "none_by_default",
+      "travel_pulse": "subtle_optional"
+    },
+    "trend_language": {
+      "geometry": "smooth_svg_curve_over_sparse_time_axis",
+      "pivot": "large_period_label_plus_compact_semantic_tag",
+      "projection": "contrast_color_only_when_semantics_change"
+    },
+    "annotation_language": {
+      "anchor": "thin_leader_line_with_target_pulse",
+      "surface": "compact_local_evidence_plaque",
+      "metric": "large_numeric_or_duration_value"
+    },
+    "color_roles": {
+      "cyan": "primary path, active growth, selected concept",
+      "magenta": "risk, bottleneck, changed projection, rejection",
+      "mint": "positive result or confirmed state",
+      "white": "relationship edge and supporting copy"
+    }
   },
   "allowed_professional_templates": [
     "chip_node_network",
@@ -79,5 +121,8 @@
     "concept_definition_scene",
     "cause_to_result_scene",
     "before_after_scene"
+    ,"progressive_relation_graph_scene"
+    ,"narrative_trend_curve_scene"
+    ,"evidence_callout_overlay_scene"
   ]
 }

@@ -1,35 +1,27 @@
 import React from 'react';
-import {IconBlock, Panel, useProgress} from '../components/Hud';
+import {GraphNode, OpenCanvas, RelationEdge, SceneWash, cueFrameForOrder, useEditorialProgress} from '../components/Editorial';
 import {MotionLayerProps} from '.';
 
-const LinkTrack: React.FC<{x: number; y: number; width: number; progress: number; color: string}> = ({x, y, width, progress, color}) => {
-  const pulseX = Math.max(0, width * progress - 9);
-  return (
-    <div style={{position: 'absolute', left: x, top: y, width, height: 16}}>
-      <div style={{position: 'absolute', left: 0, top: 7, width, height: 2, background: 'rgba(190,236,247,.18)'}} />
-      <div style={{position: 'absolute', left: 0, top: 6, width: width * progress, height: 4, borderRadius: 4, background: color, boxShadow: `0 0 10px ${color}88`}} />
-      {progress > 0 && progress < 1 && <div style={{position: 'absolute', left: pulseX, top: 2, width: 12, height: 12, borderRadius: 8, background: '#fff', boxShadow: `0 0 14px ${color}`}} />}
-    </div>
-  );
-};
-
 export const ConnectorFlow: React.FC<MotionLayerProps> = (props) => {
-  const inputIn = useProgress(0, 14);
-  const firstLink = useProgress(10, 18);
-  const connectorIn = useProgress(18, 14);
-  const secondLink = useProgress(28, 18);
-  const outputIn = useProgress(38, 14);
-  const surfaceIn = useProgress(0, 18);
-  const accent = props.styleTokens?.accentPrimary || '#6eefff';
-  const secondary = props.styleTokens?.accentSecondary || '#72ebcb';
+  const fps = props.fps || 30;
+  const duration = Math.max(16, props.durationInFrames || fps * 2);
+  const anchors = props.scene?.cueAnchors || [];
+  const wash = useEditorialProgress(0, 12);
+  const nodes = [
+    {id: 'input', label: props.input || '输入', iconSlot: 'input', role: 'source', position: {x: 0.15, y: 0.48}, revealOrder: 0},
+    {id: 'connector', label: props.connector || '连接器', iconSlot: 'connector', role: 'mechanism', position: {x: 0.5, y: 0.48}, revealOrder: 1},
+    {id: 'output', label: props.output || '输出', iconSlot: 'output', role: 'result', position: {x: 0.85, y: 0.48}, revealOrder: 2},
+  ];
+  const points = nodes.map((node) => ({x: node.position.x * 960, y: node.position.y * 900}));
+  const starts = nodes.map((_, order) => cueFrameForOrder(anchors, order, fps, Math.round(duration * (order === 0 ? 0.06 : order === 1 ? 0.34 : 0.62))));
   return (
-    <Panel>
-      <div style={{position: 'absolute', left: 48, top: 126, width: 796, height: 236, borderRadius: 24, opacity: .72 * surfaceIn, background: 'rgba(2,16,27,.62)', backdropFilter: 'blur(10px)', boxShadow: '0 18px 42px rgba(0,0,0,.22)'}} />
-      <div style={{position: 'absolute', left: 88, top: 196, opacity: inputIn, transform: `scale(${.9 + .1 * inputIn})`}}><IconBlock accent={accent} icon={props.icons?.input} label={props.input || '输入'} /></div>
-      <LinkTrack x={184} y={231} width={198} progress={firstLink} color={accent} />
-      <div style={{position: 'absolute', left: 405, top: 196, opacity: connectorIn, transform: `scale(${.9 + .1 * connectorIn})`}}><IconBlock accent={secondary} icon={props.icons?.connector} label={props.connector || '连接器'} /></div>
-      <LinkTrack x={501} y={231} width={198} progress={secondLink} color={secondary} />
-      <div style={{position: 'absolute', left: 722, top: 196, opacity: outputIn, transform: `scale(${.9 + .1 * outputIn})`}}><IconBlock accent={accent} icon={props.icons?.output} label={props.output || '输出'} /></div>
-    </Panel>
+    <>
+      <SceneWash progress={wash} opacity={0.24} />
+      <OpenCanvas>
+        <RelationEdge from={points[0]} to={points[1]} startFrame={Math.max(0, starts[1] - Math.round(duration * 0.1))} durationFrames={Math.max(5, Math.round(duration * 0.18))} color="#19e6e6" />
+        <RelationEdge from={points[1]} to={points[2]} startFrame={Math.max(0, starts[2] - Math.round(duration * 0.1))} durationFrames={Math.max(5, Math.round(duration * 0.18))} color="#72ebcb" />
+        {nodes.map((node, index) => <GraphNode key={node.id} node={node} point={points[index]} icon={props.icons?.[node.iconSlot]} startFrame={starts[index]} durationFrames={Math.max(5, Math.round(duration * 0.16))} accent={index === 1 ? '#ff4f87' : index === 2 ? '#72ebcb' : '#19e6e6'} fontFamily={props.styleTokens?.fontFamily} />)}
+      </OpenCanvas>
+    </>
   );
 };

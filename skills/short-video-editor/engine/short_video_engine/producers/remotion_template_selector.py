@@ -11,7 +11,7 @@ from ..paths import plan_dir
 from ..stage_result import current_command, failure
 
 
-STYLE = "tech_hud_glass"
+STYLE = "editorial_tech_overlay"
 
 
 def select_remotion_templates(project_dir: Path) -> tuple[Path, dict[str, Any], list[dict[str, str]]]:
@@ -30,13 +30,14 @@ def select_remotion_templates(project_dir: Path) -> tuple[Path, dict[str, Any], 
     for assertion in assertions if isinstance(assertions, list) else []:
         if not isinstance(assertion, dict):
             continue
+        scene = scene_by_motion.get(str(assertion.get("motion_id") or ""))
         llm_decision = decision_from_external(external_payload, assertion) if external_payload else None
-        decision = llm_decision or deterministic_decision(assertion, scene_by_motion.get(str(assertion.get("motion_id") or "")), registry)
+        decision = llm_decision or deterministic_decision(assertion, scene, registry)
         interval = intervals_by_motion.get(str(assertion.get("motion_id") or ""), {})
         duration_sec = max(0.8, float(interval.get("end_sec") or 0) - float(interval.get("start_sec") or 0))
         decision.setdefault("input_props", {})["durationInFrames"] = round(duration_sec * 30)
         decision["input_props"]["fps"] = 30
-        enrich_decision_with_icons(project_dir, decision, assertion, icon_manifest)
+        enrich_decision_with_icons(project_dir, decision, assertion, icon_manifest, scene or {})
         decisions.append(decision)
     payload = {
         "generated_by": "short_video_engine",
@@ -141,7 +142,18 @@ def props_for_action(action: str, slots: dict[str, Any], assertion: dict[str, An
     elif action == "connector_metaphor":
         props.update({"input": slot_text(slots.get("input")), "connector": slot_text(slots.get("connector")), "output": slot_text(slots.get("output"))})
     elif action == "metric_growth":
-        props.update({"metric": slot_text(slots.get("metric")), "baseline": slot_text(slots.get("baseline")), "targetOrDelta": slot_text(slots.get("target_or_delta"))})
+        props.update(
+            {
+                "metric": slot_text(slots.get("metric")),
+                "baseline": slot_text(slots.get("baseline")),
+                "targetOrDelta": slot_text(slots.get("target_or_delta")),
+                "startPeriod": slot_text(slots.get("baseline")),
+                "pivotPeriod": slot_text(slots.get("metric")),
+                "endPeriod": slot_text(slots.get("target_or_delta")),
+                "trendLabel": slot_text(slots.get("target_or_delta")),
+                "trendDirection": trend_direction(slots),
+            }
+        )
     elif action == "process_migration":
         props.update({"oldStep": slot_text(slots.get("old_step")), "newStep": slot_text(slots.get("new_step")), "result": slot_text(slots.get("result"))})
     elif action == "density_comparison":
@@ -150,12 +162,27 @@ def props_for_action(action: str, slots: dict[str, Any], assertion: dict[str, An
         props.update({"oldStep": slot_text(slots.get("before")), "newStep": slot_text(slots.get("after")), "result": slot_text(slots.get("transition"))})
     elif action == "cause_to_result":
         props.update({"input": slot_text(slots.get("cause")), "connector": slot_text(slots.get("mechanism")), "output": slot_text(slots.get("result"))})
+    elif action == "relation_network":
+        props.update({"core": slot_text(slots.get("core")), "dependencyA": slot_text(slots.get("dependency_a")), "dependencyB": slot_text(slots.get("dependency_b"))})
+    elif action == "trend_timeline":
+        props.update(
+            {
+                "metric": slot_text(slots.get("metric")),
+                "startPeriod": slot_text(slots.get("start_period")),
+                "pivotPeriod": slot_text(slots.get("pivot_period")),
+                "endPeriod": slot_text(slots.get("end_period")),
+                "trendLabel": slot_text(slots.get("trend_label")),
+                "trendDirection": trend_direction(slots),
+            }
+        )
+    elif action == "bottleneck_evidence":
+        props.update({"subject": slot_text(slots.get("subject")), "bottleneck": slot_text(slots.get("bottleneck")), "durationOrMetric": slot_text(slots.get("duration_or_metric"))})
     else:
         props.update({"subject": slot_text(slots.get("subject")), "definition": slot_text(slots.get("definition")), "role": slot_text(slots.get("role"))})
     return props
 
 
-def enrich_decision_with_icons(project_dir: Path, decision: dict[str, Any], assertion: dict[str, Any], manifest: dict[str, Any]) -> None:
+def enrich_decision_with_icons(project_dir: Path, decision: dict[str, Any], assertion: dict[str, Any], manifest: dict[str, Any], scene: dict[str, Any]) -> None:
     props = decision.setdefault("input_props", {})
     by_assertion = manifest.get("icons_by_assertion") if isinstance(manifest, dict) else {}
     slots = by_assertion.get(str(assertion.get("motion_assertion_id") or ""), {}) if isinstance(by_assertion, dict) else {}
@@ -163,12 +190,65 @@ def enrich_decision_with_icons(project_dir: Path, decision: dict[str, Any], asse
         str(slot): {"semanticKey": value.get("semantic_key"), "src": value.get("public_path"), "colorToken": "danger" if str(slot).startswith("rejected") else "accentSecondary"}
         for slot, value in slots.items() if isinstance(value, dict)
     }
-    props["scene"] = {"nodes": [{"id": str(slot), "label": slot_text((assertion.get("slots") or {}).get(slot)), "iconSlot": str(slot)} for slot in slots], "metrics": [], "connectors": [], "intensity": "normal"}
-    props["styleTokens"] = {"accentPrimary": "#65e7ff", "accentSecondary": "#72ebcb", "danger": "#ff5c7a", "textPrimary": "#ffffff", "textSecondary": "#bde6ff", "panel": "rgba(2,13,22,0.68)", "panelEdge": "#65e7ff", "fontFamily": "PingFang SC, Arial, sans-serif"}
+    props["scene"] = scene_props(scene, assertion, slots)
+    props["compositionMode"] = scene.get("composition_mode") or "bounded_semantic"
+    props["backgroundTreatment"] = scene.get("background_treatment") or "localized_translucent_readability_backdrop"
+    props["styleTokens"] = {"accentPrimary": "#19e6e6", "accentSecondary": "#ff4f87", "positive": "#72ebcb", "danger": "#ff4f87", "textPrimary": "#ffffff", "textSecondary": "#bde6ff", "panel": "rgba(2,13,34,0.72)", "panelEdge": "#19e6e6", "fontFamily": "PingFang SC, Arial, sans-serif"}
     frames = int(props.get("durationInFrames") or 72)
     props["timing"] = {"enterEnd": round(frames * .18), "buildEnd": round(frames * .52), "emphasisEnd": round(frames * .70), "holdEnd": round(frames * .90)}
     decision["icon_coverage"] = sorted(slots)
     decision["unresolved_icon_slots"] = [str(key) for key in (assertion.get("slots") or {}) if str(key) not in slots]
+
+
+def scene_props(scene: dict[str, Any], assertion: dict[str, Any], resolved_icons: dict[str, Any]) -> dict[str, Any]:
+    nodes = []
+    for node in (scene.get("nodes") if isinstance(scene.get("nodes"), list) else []):
+        if not isinstance(node, dict):
+            continue
+        icon_slot = str(node.get("icon_slot") or node.get("iconSlot") or node.get("id") or "")
+        position = node.get("position") if isinstance(node.get("position"), dict) else {}
+        nodes.append(
+            {
+                "id": str(node.get("id") or icon_slot),
+                "label": str(node.get("label") or slot_text((assertion.get("slots") or {}).get(icon_slot))),
+                "iconSlot": icon_slot,
+                "role": str(node.get("role") or "semantic_node"),
+                "position": {"x": float(position.get("x") or 0.5), "y": float(position.get("y") or 0.5)},
+                "revealOrder": int(node.get("reveal_order") or node.get("revealOrder") or 0),
+            }
+        )
+    if not nodes:
+        nodes = [{"id": str(slot), "label": slot_text((assertion.get("slots") or {}).get(slot)), "iconSlot": str(slot), "role": "semantic_node", "revealOrder": index} for index, slot in enumerate(resolved_icons)]
+    connectors = []
+    for connector in (scene.get("connectors") if isinstance(scene.get("connectors"), list) else []):
+        if isinstance(connector, dict):
+            connectors.append(
+                {
+                    "from": str(connector.get("from") or ""),
+                    "to": str(connector.get("to") or ""),
+                    "style": str(connector.get("style") or "semantic_path"),
+                    "relation": str(connector.get("relation") or "related_to"),
+                    "revealOrder": int(connector.get("reveal_order") or connector.get("revealOrder") or 0),
+                }
+            )
+    return {
+        "nodes": nodes,
+        "metrics": scene.get("metrics") if isinstance(scene.get("metrics"), list) else [],
+        "connectors": connectors,
+        "intensity": scene.get("intensity") or "normal",
+        "layoutType": scene.get("layout_type") or "template_layout",
+        "topology": scene.get("topology") or "ordered",
+        "cueAnchors": scene.get("cue_anchors") if isinstance(scene.get("cue_anchors"), list) else [],
+    }
+
+
+def trend_direction(slots: dict[str, Any]) -> str:
+    text = " ".join(slot_text(value) for value in slots.values())
+    if any(term in text for term in ("下降", "回落", "减少")):
+        return "decline"
+    if any(term in text for term in ("分水岭", "拐点", "放缓", "平台")):
+        return "rise_then_plateau"
+    return "rise"
 
 
 def validate_remotion_template_decisions(project_dir: Path, payload: dict[str, Any], registry: dict[str, Any] | None = None) -> list[dict[str, str]]:

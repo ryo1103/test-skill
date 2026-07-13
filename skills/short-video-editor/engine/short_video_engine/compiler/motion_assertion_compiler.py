@@ -12,6 +12,8 @@ from ..producers.motion_renderer.registry import SEMANTIC_TEMPLATE_BY_ACTION
 
 
 EN_TERM_RE = re.compile(r"[A-Za-z][A-Za-z0-9._+/#-]*")
+YEAR_RE = re.compile(r"20\d{2}年?")
+DURATION_RE = re.compile(r"\d+(?:\.\d+)?\s*(?:-|~|至|到)\s*\d+(?:\.\d+)?\s*(?:年|个月|月|天)")
 
 
 def build_required_motion_index(project_dir: Path, *, overwrite: bool = False) -> tuple[Path, dict[str, Any], list[dict[str, str]]]:
@@ -115,6 +117,12 @@ def compile_assertion(required_motion: dict[str, Any], shot: dict[str, Any], act
 def infer_semantic_action(text: str) -> tuple[str, str]:
     if re.search(r"不是|也不是|而是", text):
         return "negate_and_redefine", "fallback_ladder:not_but"
+    if len(YEAR_RE.findall(text)) >= 2 or re.search(r"分水岭|拐点|时间线|未来.*(?:年|季度)|20\d{2}年.*20\d{2}年", text):
+        return "trend_timeline", "fallback_ladder:trend_timeline"
+    if re.search(r"供给侧|产能爬坡|工厂建设|建设.*(?:年|月)|供需失衡", text) and (re.search(r"瓶颈|爬坡|产能|释放", text) or DURATION_RE.search(text)):
+        return "bottleneck_evidence", "fallback_ladder:bottleneck_evidence"
+    if re.search(r"(?:需要|依赖).{0,40}(?:和|以及|与|、|及)", text) or re.search(r"由.+?(?:组成|构成)", text):
+        return "relation_network", "fallback_ladder:relation_network"
     if re.search(r"理解成|连接器|输入|输出|节点|链路|光纤", text):
         return "connector_metaphor", "fallback_ladder:connector"
     if re.search(r"规模|增加|下降|成本|效率|指标|%|倍|增长|变大", text):
@@ -142,6 +150,25 @@ def fill_slots(action: str, text: str, entities: list[str]) -> dict[str, str]:
         }
     if action == "connector_metaphor":
         return {"input": infer_keyword(text, ["输入", "光纤", "上游"], "输入"), "connector": infer_keyword(text, ["光纤连接器", "连接器", "GlassBridge", "FAU"], subject or "连接器"), "output": infer_keyword(text, ["输出", "芯片", "下游"], "输出")}
+    if action == "relation_network":
+        dependency_a, dependency_b = dependency_terms(text, subject, entities)
+        return {"core": subject or "核心概念", "dependency_a": dependency_a, "dependency_b": dependency_b}
+    if action == "trend_timeline":
+        start_period, pivot_period, end_period = trend_periods(text)
+        return {
+            "metric": infer_keyword(text, ["需求", "供给", "产能", "成本", "规模", "景气", "渗透率"], subject or "趋势"),
+            "start_period": start_period,
+            "pivot_period": pivot_period,
+            "end_period": end_period,
+            "trend_label": infer_keyword(text, ["高景气穿透", "分水岭", "拐点", "增长", "上升", "释放", "回落"], "趋势变化"),
+        }
+    if action == "bottleneck_evidence":
+        duration = DURATION_RE.search(text)
+        return {
+            "subject": infer_keyword(text, ["供给侧", "需求侧", "工厂建设", "产能"], subject or "关键环节"),
+            "bottleneck": infer_keyword(text, ["核心瓶颈", "瓶颈", "产能爬坡", "供需失衡"], "核心瓶颈"),
+            "duration_or_metric": short_slot(duration.group(0)) if duration else infer_keyword(text, ["长期", "数年", "高成本", "低效率"], "关键约束"),
+        }
     if action == "metric_growth":
         return {"metric": infer_keyword(text, ["连接规模", "规模", "成本", "效率", "指标"], "连接规模"), "baseline": infer_keyword(text, ["当前", "基准", "baseline"], "基准"), "target_or_delta": infer_keyword(text, ["快速增加", "增加", "增长", "下降", "更高", "倍"], "快速增加")}
     if action == "process_migration":
@@ -200,6 +227,44 @@ def infer_keyword(text: str, candidates: list[str], fallback: str) -> str:
     return short_slot(fallback)
 
 
+def dependency_terms(text: str, subject: str, entities: list[str]) -> tuple[str, str]:
+    tail = re.split(r"需要|依赖|由", text, maxsplit=1)[-1]
+    raw_parts = re.split(r"以及|并且|同时|和|与|、|及|组成|构成|[，。；,.]", tail)
+    candidates: list[str] = []
+    for raw in raw_parts:
+        clean = re.sub(r"^(持续|长期|共同|还要|还需要|必须|负责)", "", raw.strip())
+        value = short_slot(clean) if clean else ""
+        if value and value != "未命名" and value != subject and value not in candidates:
+            candidates.append(value)
+    for keyword in ("调用上下文", "上下文和记忆", "上下文", "记忆", "DRAM/SSD", "DRAM", "SSD", "长期存储", "高精度设备", "人工"):
+        if keyword in text and keyword != subject and keyword not in candidates:
+            candidates.append(keyword)
+    for entity in entities:
+        value = short_slot(entity)
+        if value and value != subject and value not in candidates:
+            candidates.append(value)
+    if not candidates:
+        candidates = ["关键条件", "支撑条件"]
+    elif len(candidates) == 1:
+        candidates.append("配套能力")
+    return candidates[0], candidates[1]
+
+
+def trend_periods(text: str) -> tuple[str, str, str]:
+    years = []
+    for value in YEAR_RE.findall(text):
+        clean = value if value.endswith("年") else f"{value}年"
+        if clean not in years:
+            years.append(clean)
+    if len(years) >= 3:
+        return years[0], years[len(years) // 2], years[-1]
+    if len(years) == 2:
+        return "现在", years[0], years[1]
+    if len(years) == 1:
+        return "现在", years[0], "未来"
+    return "现在", "拐点", "未来"
+
+
 def requirement_reason(shot: dict[str, Any]) -> str:
     reason = shot.get("logic_relation_reason")
     if isinstance(reason, dict):
@@ -240,6 +305,14 @@ def semantic_icon_for(slot_name: str, text: str, action: str, semantic_icon_map:
         return "warning" if action in {"density_comparison", "process_migration"} else "node"
     if slot_name in {"new_requirement"}:
         return "warning"
+    if slot_name in {"start_period", "pivot_period", "end_period", "duration_or_metric"}:
+        return "timeline"
+    if slot_name in {"metric", "trend_label"} and action in {"metric_growth", "trend_timeline"}:
+        return "trend_down" if any(term in lowered for term in ("下降", "回落", "减少")) else "trend_up"
+    if slot_name == "bottleneck":
+        return "warning"
+    if slot_name == "dependency_a" and any(term in lowered for term in ("上下文", "调用", "网络")):
+        return "network"
     if any(term in lowered for term in ("hbm", "dram", "ssd", "内存", "存储")):
         return "memory"
     return "node"
@@ -262,6 +335,12 @@ def claim_for(action: str, slots: dict[str, Any]) -> str:
         return f"{slot_text(slots.get('old_step'))} 迁移到 {slot_text(slots.get('new_step'))}，形成 {slot_text(slots.get('result'))}"
     if action == "density_comparison":
         return f"{slot_text(slots.get('old_solution'))} 面对 {slot_text(slots.get('new_requirement'))}，需要 {slot_text(slots.get('new_solution'))}"
+    if action == "relation_network":
+        return f"{slot_text(slots.get('core'))} 依赖 {slot_text(slots.get('dependency_a'))} 与 {slot_text(slots.get('dependency_b'))}"
+    if action == "trend_timeline":
+        return f"{slot_text(slots.get('metric'))} 在 {slot_text(slots.get('pivot_period'))} 出现 {slot_text(slots.get('trend_label'))}"
+    if action == "bottleneck_evidence":
+        return f"{slot_text(slots.get('subject'))} 的 {slot_text(slots.get('bottleneck'))}：{slot_text(slots.get('duration_or_metric'))}"
     return "脚本逻辑需要可视化解释"
 
 

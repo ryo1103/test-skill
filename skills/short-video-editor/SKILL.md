@@ -36,6 +36,8 @@ Rules:
 - Pipeline order includes `S1_5_subtitle_layout_planning` between S1 and S2; S1 owns exact source/timing cues, S1.5 owns readable subtitle beats, and S2 must plan shots from those beats.
 - Pipeline order includes `S4_5_motion_icon_preparation` between S4 and S5; it may materialize only sanitized local SVG semantic icons and must never derive motion assets from B-roll.
 - Strict S5 motion must use localized readability backdrops and semantic node-to-node animation. Global decorative outer frames, unmotivated full-width connector lines, text-glyph arrows, and generic English template chrome cannot receive professional PASS.
+- S5 must preserve one editorial-tech visual grammar without forcing one diagram onto every sentence: relation/causal claims use progressive node topology, time/change claims use narrative curves, bottleneck claims use anchored evidence, comparisons use split fields, and processes use milestone paths. Template choice follows `semantic_action`; color and layout alone never justify a template.
+- Remotion motion timing must scale from `durationInFrames` and subtitle cue anchors so every required semantic stage materializes before the clip ends. A source-only project, an incomplete short-clip animation, or a generic fallback surface cannot receive professional PASS.
 - `--enable-asr` may run local faster-whisper to produce `asr_word_timestamps.json`; guessed/proportional timing remains draft-only.
 - Codex must not manually create or edit PASS reports.
 - Codex must not treat request files, queued rows, dummy metadata, static images, generated placeholders, or metadata-only files as production evidence.

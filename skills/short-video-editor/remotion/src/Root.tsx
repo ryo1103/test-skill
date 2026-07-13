@@ -1,6 +1,5 @@
 import React from 'react';
-import {CalculateMetadataFunction, Composition} from 'remotion';
-import {registerRoot} from 'remotion';
+import {CalculateMetadataFunction, Composition, registerRoot} from 'remotion';
 import {MotionLayer, MotionLayerProps} from './templates';
 
 export const RemotionRoot: React.FC = () => {
@@ -14,16 +13,16 @@ export const RemotionRoot: React.FC = () => {
       width={1080}
       height={1920}
       defaultProps={{
-        templateId: 'concept_definition',
+        templateId: 'progressive_relation_graph',
         motionId: 'motion',
-        style: 'tech_hud_glass',
+        style: 'editorial_tech_overlay',
         durationInFrames: 72,
-        semanticAction: 'concept_definition',
-        subject: 'GlassBridge',
-        definition: '光纤连接器',
-        role: '连接作用',
+        semanticAction: 'relation_network',
+        core: '核心概念',
+        dependencyA: '条件 A',
+        dependencyB: '条件 B',
         claim: '逻辑关系',
-        labels: ['概念', '机制', '结果'],
+        labels: ['核心', '条件 A', '条件 B'],
         icons: {},
       }}
     />

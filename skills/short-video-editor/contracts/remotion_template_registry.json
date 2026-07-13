@@ -1,7 +1,7 @@
 {
   "generated_by": "short_video_engine",
-  "registry_id": "remotion_template_registry_v1",
-  "style": "tech_hud_glass",
+  "registry_id": "remotion_template_registry_v2",
+  "style": "editorial_tech_overlay",
   "templates": [
     {
       "template_id": "negation_to_connector",
@@ -65,16 +65,43 @@
       "supports_semantic_actions": ["cause_to_result", "concept_definition", "connector_metaphor"],
       "required_slots": ["cause", "mechanism", "result"],
       "required_visual_actions": ["show_cause", "show_mechanism", "show_result"]
+    },
+    {
+      "template_id": "progressive_relation_graph",
+      "component": "ProgressiveRelationGraph",
+      "visual_family": "open_canvas_relation",
+      "supports_semantic_actions": ["relation_network", "cause_to_result", "concept_definition"],
+      "required_slots": ["core", "dependency_a", "dependency_b"],
+      "required_visual_actions": ["show_core", "grow_relation_a", "reveal_dependency_a", "grow_relation_b", "reveal_dependency_b", "settle_network"]
+    },
+    {
+      "template_id": "narrative_trend_curve",
+      "component": "NarrativeTrendCurve",
+      "visual_family": "open_canvas_trend",
+      "supports_semantic_actions": ["trend_timeline", "metric_growth"],
+      "required_slots": ["metric", "start_period", "pivot_period", "end_period", "trend_label"],
+      "required_visual_actions": ["reveal_axis", "draw_trend", "reveal_pivot", "extend_projection", "hold_outlook", "reveal_baseline", "draw_growth_curve", "reveal_delta", "direction_emphasis"]
+    },
+    {
+      "template_id": "evidence_callout_overlay",
+      "component": "EvidenceCalloutOverlay",
+      "visual_family": "anchored_evidence",
+      "supports_semantic_actions": ["bottleneck_evidence"],
+      "required_slots": ["subject", "bottleneck", "duration_or_metric"],
+      "required_visual_actions": ["locate_subject", "pin_bottleneck", "reveal_metric", "hold_evidence"]
     }
   ],
   "deterministic_mapping": {
     "negate_and_redefine": "negation_to_connector",
     "connector_metaphor": "connector_flow",
-    "metric_growth": "metric_growth",
+    "metric_growth": "narrative_trend_curve",
     "process_migration": "process_migration",
     "density_comparison": "split_screen_comparison",
     "concept_definition": "concept_definition",
-    "cause_to_result": "connector_flow",
-    "before_after_change": "split_screen_comparison"
+    "cause_to_result": "progressive_relation_graph",
+    "before_after_change": "split_screen_comparison",
+    "relation_network": "progressive_relation_graph",
+    "trend_timeline": "narrative_trend_curve",
+    "bottleneck_evidence": "evidence_callout_overlay"
   }
 }
